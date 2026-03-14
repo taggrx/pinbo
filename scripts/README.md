@@ -16,6 +16,12 @@ Scripts for testing the Pinboard smart contract locally with Foundry/Anvil.
 
 2. Update `.env.local` if needed (default values work with Anvil)
 
+## Notes
+
+- **Anvil restarts**: When you restart Anvil, all contract deployments are lost. Run `./scripts/deploy_and_test.sh` to deploy a new contract and update the address in `.env.local`.
+- **Private key**: `.env.local` contains the default Anvil private key (`0xac0974...`) for testing only.
+- **Contract address**: The `PINBOARD_CONTRACT_ADDRESS` in `.env.local` must match a deployed contract. If you get empty logs, verify the contract exists at that address (`cast code <address>`).
+
 ## Scripts
 
 ### `start_anvil.sh`
@@ -48,7 +54,9 @@ Usage:
 ```
 
 ### `fetch_logs.sh`
-Fetch and display all `MessagePosted` events.
+Fetch and display all `MessagePosted` events in human-readable format.
+- Shows block number, timestamp (UTC), sender address, message, and transaction hash
+- Requires `jq` for formatted output (falls back to raw JSON)
 
 Usage:
 ```bash
