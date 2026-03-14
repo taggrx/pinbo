@@ -55,6 +55,16 @@ body {
   box-sizing: border-box;
 }
 
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
 /* Utility classes */
 .container {
   max-width: 800px;

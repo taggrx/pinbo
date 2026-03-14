@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { account, isConnected, connect, disconnect, fetchMessages, postMessage, watchMessages } from '$lib/ethereum';
   import { fade } from 'svelte/transition';
+  import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
 
   let messages = $state<any[]>([]);
   let newMessage = $state('');
@@ -50,6 +52,11 @@
 
   function formatTime(timestamp: number) {
     return new Date(timestamp).toLocaleString();
+  }
+
+  function renderMarkdown(text: string): string {
+    const html = marked.parse(text, { async: false }) as string;
+    return DOMPurify.sanitize(html);
   }
 </script>
 
@@ -104,7 +111,7 @@
                 <a href={getEtherscanLink(message.sender)} class="sender" target="_blank" rel="noopener noreferrer">{formatAddress(message.sender)}</a>
                 <span class="timestamp">{formatTime(message.timestamp)}</span>
               </div>
-              <p class="message-text">{message.message}</p>
+              <div class="message-text">{@html renderMarkdown(message.message)}</div>
             </div>
           {/each}
         </div>
