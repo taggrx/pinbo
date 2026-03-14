@@ -17,3 +17,4 @@ The frontend also allows users to post messages by sending transactions to the s
 ## Working instructions
 
 - never create commits yourself
+- never touch any servers yourself: do not stop and do not start them

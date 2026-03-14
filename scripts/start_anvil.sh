@@ -19,7 +19,7 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 echo "Starting Anvil on port $PORT..."
-PATH="$HOME/.foundry/bin:$PATH" anvil --port "$PORT" > "$LOG_FILE" 2>&1 &
+PATH="$HOME/.foundry/bin:$PATH" anvil --port "$PORT" --host 0.0.0.0 > "$LOG_FILE" 2>&1 &
 ANVIL_PID=$!
 
 echo "$ANVIL_PID" > "$PID_FILE"

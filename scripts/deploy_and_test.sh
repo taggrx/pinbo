@@ -45,6 +45,19 @@ else
     echo "PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> .env.local
 fi
 echo "   Updated .env.local with contract address"
+
+# Update frontend/.env with contract address
+if [ -f frontend/.env ]; then
+    if grep -q "VITE_PINBO_CONTRACT_ADDRESS=" frontend/.env; then
+        sed -i "s|VITE_PINBO_CONTRACT_ADDRESS=.*|VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" frontend/.env
+    else
+        echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> frontend/.env
+    fi
+    echo "   Updated frontend/.env with contract address"
+else
+    echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" > frontend/.env
+    echo "   Created frontend/.env with contract address"
+fi
 echo ""
 
 # Wait a moment for block inclusion

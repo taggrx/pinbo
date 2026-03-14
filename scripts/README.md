@@ -26,9 +26,9 @@ Scripts for testing the Pinbo smart contract locally with Foundry/Anvil.
 
 ### `start_anvil.sh`
 Starts Anvil local Ethereum node in background.
-- Runs on port 8545
-- Saves PID to `.anvil.pid`
-- Logs to `anvil.log`
+ - Runs on port 8545
+ - Saves PID to `.anvil.pid`
+ - Logs to `anvil.log`
 
 ### `stop_anvil.sh`
 Stops the running Anvil process.
