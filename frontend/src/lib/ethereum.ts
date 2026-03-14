@@ -12,6 +12,8 @@ export const account = writable<`0x${string}` | null>(null);
 export const isConnected = writable(false);
 export const error = writable<string | null>(null);
 
+const STORAGE_KEY = 'pinbo_account';
+
 // Public client (read-only)
 export const publicClient = createPublicClient({
   chain: anvil,
@@ -20,6 +22,33 @@ export const publicClient = createPublicClient({
 
 // Wallet client (for sending transactions)
 let walletClient: ReturnType<typeof createWalletClient> | null = null;
+
+// Auto-connect on load
+export async function autoConnect() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return;
+  
+  try {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+    const provider = window.ethereum as EthereumProvider;
+    
+    // Check if account is still available
+    const accounts = await provider.request({ method: 'eth_accounts' });
+    if (!accounts.includes(stored)) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    
+    walletClient = createWalletClient({
+      chain: anvil,
+      transport: custom(provider),
+    });
+    account.set(stored as `0x${string}`);
+    isConnected.set(true);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
 
 // Initialize connection
 export async function connect() {
@@ -33,6 +62,7 @@ export async function connect() {
     account.set(address);
     isConnected.set(true);
     error.set(null);
+    localStorage.setItem(STORAGE_KEY, address);
     
     // Create wallet client
     walletClient = createWalletClient({
@@ -52,6 +82,7 @@ export function disconnect() {
   account.set(null);
   isConnected.set(false);
   walletClient = null;
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 // Post a message (compress with max compression, fallback to plain bytes if larger)

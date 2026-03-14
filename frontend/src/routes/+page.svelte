@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { account, isConnected, connect, disconnect, fetchMessages, postMessage, watchMessages } from '$lib/ethereum';
+  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages } from '$lib/ethereum';
   import { fade } from 'svelte/transition';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
@@ -12,6 +12,7 @@
   let unwatch: (() => void) | null = null;
 
   onMount(async () => {
+    await autoConnect();
     try {
       messages = await fetchMessages();
     } catch (err) {
@@ -83,17 +84,12 @@
           <textarea
             class="input"
             bind:value={newMessage}
-            placeholder="WHAT'S ON YOUR MIND?"
             rows="3"
           ></textarea>
           <button class="btn" on:click={handlePost} disabled={posting || !newMessage.trim()}>
             {posting ? 'POSTING...' : 'POST'}
           </button>
         </div>
-      </div>
-    {:else}
-      <div class="card text-center">
-        <h2>CONNECT YOUR WALLET TO POST MESSAGES</h2>
       </div>
     {/if}
 
