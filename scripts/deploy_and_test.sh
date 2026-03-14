@@ -17,18 +17,18 @@ fi
 : "${LOCAL_RPC_URL:?LOCAL_RPC_URL not set}"
 : "${LOCAL_PRIVATE_KEY:?LOCAL_PRIVATE_KEY not set}"
 
-echo "=== Pinboard Local Test Workflow ==="
+echo "=== Pinbo Local Test Workflow ==="
 echo ""
 
 # Step 1: Deploy contract
-echo "1. Deploying Pinboard contract..."
+echo "1. Deploying Pinbo contract..."
 DEPLOY_OUTPUT=$(PATH="$HOME/.foundry/bin:$PATH" forge script script/Deploy.s.sol:Deploy \
     --rpc-url "$LOCAL_RPC_URL" \
     --private-key "$LOCAL_PRIVATE_KEY" \
     --broadcast)
 
 # Extract contract address from output (simplistic)
-CONTRACT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep -oE "Pinboard deployed at: 0x[a-fA-F0-9]{40}" | cut -d' ' -f4)
+CONTRACT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep -oE "Pinbo deployed at: 0x[a-fA-F0-9]{40}" | cut -d' ' -f4)
 if [ -z "$CONTRACT_ADDRESS" ]; then
     echo "Failed to extract contract address from output"
     echo "$DEPLOY_OUTPUT"
@@ -39,10 +39,10 @@ echo "   Contract deployed at: $CONTRACT_ADDRESS"
 echo ""
 
 # Update .env.local with contract address
-if grep -q "PINBOARD_CONTRACT_ADDRESS=" .env.local 2>/dev/null; then
-    sed -i "s|PINBOARD_CONTRACT_ADDRESS=.*|PINBOARD_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" .env.local
+if grep -q "PINBO_CONTRACT_ADDRESS=" .env.local 2>/dev/null; then
+    sed -i "s|PINBO_CONTRACT_ADDRESS=.*|PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" .env.local
 else
-    echo "PINBOARD_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> .env.local
+    echo "PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> .env.local
 fi
 echo "   Updated .env.local with contract address"
 echo ""

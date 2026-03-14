@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post a message to Pinboard contract
+# Post a message to Pinbo contract
 
 set -e
 
@@ -16,7 +16,7 @@ fi
 # Check required variables
 : "${LOCAL_RPC_URL:?LOCAL_RPC_URL not set}"
 : "${LOCAL_PRIVATE_KEY:?LOCAL_PRIVATE_KEY not set}"
-: "${PINBOARD_CONTRACT_ADDRESS:?PINBOARD_CONTRACT_ADDRESS not set}"
+: "${PINBO_CONTRACT_ADDRESS:?PINBO_CONTRACT_ADDRESS not set}"
 
 # Get message from command line
 if [ $# -eq 0 ]; then
@@ -25,11 +25,11 @@ if [ $# -eq 0 ]; then
 fi
 MESSAGE="$1"
 
-echo "Posting message to contract $PINBOARD_CONTRACT_ADDRESS..."
+echo "Posting message to contract $PINBO_CONTRACT_ADDRESS..."
 echo "Message: $MESSAGE"
 
 # Send transaction
-cast send "$PINBOARD_CONTRACT_ADDRESS" \
+cast send "$PINBO_CONTRACT_ADDRESS" \
     --rpc-url "$LOCAL_RPC_URL" \
     --private-key "$LOCAL_PRIVATE_KEY" \
     "postMessage(string)" "$MESSAGE"

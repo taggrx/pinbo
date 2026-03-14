@@ -1,6 +1,6 @@
-# Pinboard Local Testing Scripts
+# Pinbo Local Testing Scripts
 
-Scripts for testing the Pinboard smart contract locally with Foundry/Anvil.
+Scripts for testing the Pinbo smart contract locally with Foundry/Anvil.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Scripts for testing the Pinboard smart contract locally with Foundry/Anvil.
 
 - **Anvil restarts**: When you restart Anvil, all contract deployments are lost. Run `./scripts/deploy_and_test.sh` to deploy a new contract and update the address in `.env.local`.
 - **Private key**: `.env.local` contains the default Anvil private key (`0xac0974...`) for testing only.
-- **Contract address**: The `PINBOARD_CONTRACT_ADDRESS` in `.env.local` must match a deployed contract. If you get empty logs, verify the contract exists at that address (`cast code <address>`).
+- **Contract address**: The `PINBO_CONTRACT_ADDRESS` in `.env.local` must match a deployed contract. If you get empty logs, verify the contract exists at that address (`cast code <address>`).
 
 ## Scripts
 
@@ -35,7 +35,7 @@ Stops the running Anvil process.
 
 ### `deploy_and_test.sh`
 Full workflow:
-1. Deploys Pinboard contract
+1. Deploys Pinbo contract
 2. Updates `.env.local` with contract address
 3. Posts a test message
 4. Fetches and displays logs

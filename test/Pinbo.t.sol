@@ -2,31 +2,31 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Pinboard} from "../src/Pinboard.sol";
+import {Pinbo} from "../src/Pinbo.sol";
 
-contract PinboardTest is Test {
-    Pinboard public pinboard;
+contract PinboTest is Test {
+    Pinbo public pinbo;
 
     function setUp() public {
-        pinboard = new Pinboard();
+        pinbo = new Pinbo();
     }
 
     function test_PostMessageEmitsEvent() public {
         string memory message = "Hello, world!";
         vm.expectEmit(true, false, false, true);
         emit MessagePosted(address(this), message, block.timestamp);
-        pinboard.postMessage(message);
+        pinbo.postMessage(message);
     }
 
     function test_PostMessageEmptyString() public {
         vm.expectRevert("Message cannot be empty");
-        pinboard.postMessage("");
+        pinbo.postMessage("");
     }
 
     function test_PostMessageGasUsage() public {
         string memory shortMessage = "Short";
         uint256 gasStart = gasleft();
-        pinboard.postMessage(shortMessage);
+        pinbo.postMessage(shortMessage);
         uint256 gasUsed = gasStart - gasleft();
         
         // Log gas usage for reference
@@ -45,7 +45,7 @@ contract PinboardTest is Test {
         }
 
         uint256 gasStart = gasleft();
-        pinboard.postMessage(longMessage);
+        pinbo.postMessage(longMessage);
         uint256 gasUsed = gasStart - gasleft();
         
         console.log("Gas used for 500-byte message:", gasUsed);
@@ -59,7 +59,7 @@ contract PinboardTest is Test {
         
         vm.expectEmit(true, false, false, true);
         emit MessagePosted(address(this), message, block.timestamp);
-        pinboard.postMessage(message);
+        pinbo.postMessage(message);
     }
 }
 

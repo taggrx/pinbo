@@ -1,6 +1,6 @@
-# Pinboard
+# Pinbo
 
-Pinboard is a social pinboard implemented on top of Ethereum.
+Pinbo is a social pinbo implemented on top of Ethereum.
 Users can post simple text messages and the frontend displays them.
 Messages are going top to bottom.
 

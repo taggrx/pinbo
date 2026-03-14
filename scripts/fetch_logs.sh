@@ -14,9 +14,9 @@ else
 fi
 
 : "${LOCAL_RPC_URL:?LOCAL_RPC_URL not set}"
-: "${PINBOARD_CONTRACT_ADDRESS:?PINBOARD_CONTRACT_ADDRESS not set}"
+: "${PINBO_CONTRACT_ADDRESS:?PINBO_CONTRACT_ADDRESS not set}"
 
-echo "Fetching logs for contract $PINBOARD_CONTRACT_ADDRESS..."
+echo "Fetching logs for contract $PINBO_CONTRACT_ADDRESS..."
 echo ""
 
 # Get logs for MessagePosted event
@@ -26,7 +26,7 @@ LOGS_JSON=$(cast logs \
     --rpc-url "$LOCAL_RPC_URL" \
     --from-block 0 \
     --to-block latest \
-    --address "$PINBOARD_CONTRACT_ADDRESS" \
+    --address "$PINBO_CONTRACT_ADDRESS" \
     "MessagePosted(address,string,uint256)" \
     --json)
 

@@ -2,16 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Pinboard} from "../src/Pinboard.sol";
+import {Pinbo} from "../src/Pinbo.sol";
 
 contract Deploy is Script {
     function run() public {
         vm.startBroadcast();
 
-        Pinboard pinboard = new Pinboard();
+        Pinbo pinbo = new Pinbo();
 
         vm.stopBroadcast();
 
-        console.log("Pinboard deployed at:", address(pinboard));
+        console.log("Pinbo deployed at:", address(pinbo));
     }
 }

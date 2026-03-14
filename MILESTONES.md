@@ -1,7 +1,7 @@
-# Pinboard Implementation Milestones
+# Pinbo Implementation Milestones
 
 ## Overview
-Pinboard is a social pinboard on Ethereum where users post text messages. The smart contract emits logs, and the frontend displays messages in order (newest first).
+Pinbo is a social pinbo on Ethereum where users post text messages. The smart contract emits logs, and the frontend displays messages in order (newest first).
 
 ## Tech Stack Decisions
 - **Ethereum Network**: Local development (Foundry/Anvil)
@@ -29,7 +29,7 @@ Pinboard is a social pinboard on Ethereum where users post text messages. The sm
    - Set up `.env` template for environment variables
 
 2. **Smart Contract Development**
-   - Create `Pinboard.sol` contract with:
+   - Create `Pinbo.sol` contract with:
      - `postMessage(string memory message)` function
      - `MessagePosted(address indexed sender, string message, uint256 timestamp)` event
      - No storage variables
@@ -82,7 +82,7 @@ Pinboard is a social pinboard on Ethereum where users post text messages. The sm
    - Display connected account address and balance
 
 3. **Contract Integration**
-   - Generate TypeScript bindings from contract ABI (`forge inspect Pinboard abi`)
+   - Generate TypeScript bindings from contract ABI (`forge inspect Pinbo abi`)
    - Create viem contract instance
    - Implement `useWatchContractEvent` for real-time message updates
    - Implement historical event fetching on component mount
