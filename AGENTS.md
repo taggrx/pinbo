@@ -13,4 +13,7 @@ The frontend also allows users to post messages by sending transactions to the s
 ## Project Tracking
 
 - [MILESTONES.md](./MILESTONES.md): Detailed implementation plan with three milestones
-- [COMPLETED.md](./COMPLETED.md): Tracks completed steps (updated only by the user)
+
+## Working instructions
+
+- never create commits yourself

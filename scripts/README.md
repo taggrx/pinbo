@@ -1,0 +1,78 @@
+# Pinboard Local Testing Scripts
+
+Scripts for testing the Pinboard smart contract locally with Foundry/Anvil.
+
+## Prerequisites
+
+- Foundry (forge, cast, anvil) installed
+- Anvil running locally on port 8545 (use `./scripts/start_anvil.sh`)
+
+## Environment Setup
+
+1. Copy `.env.example` to `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Update `.env.local` if needed (default values work with Anvil)
+
+## Scripts
+
+### `start_anvil.sh`
+Starts Anvil local Ethereum node in background.
+- Runs on port 8545
+- Saves PID to `.anvil.pid`
+- Logs to `anvil.log`
+
+### `stop_anvil.sh`
+Stops the running Anvil process.
+
+### `deploy_and_test.sh`
+Full workflow:
+1. Deploys Pinboard contract
+2. Updates `.env.local` with contract address
+3. Posts a test message
+4. Fetches and displays logs
+
+Usage:
+```bash
+./scripts/deploy_and_test.sh
+```
+
+### `post_message.sh`
+Post a message to the deployed contract.
+
+Usage:
+```bash
+./scripts/post_message.sh "Your message here"
+```
+
+### `fetch_logs.sh`
+Fetch and display all `MessagePosted` events.
+
+Usage:
+```bash
+./scripts/fetch_logs.sh
+```
+
+## Manual Testing with Foundry
+
+### Run tests
+```bash
+forge test --gas-report
+```
+
+### Deploy contract manually
+```bash
+forge script script/Deploy.s.sol:Deploy --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
+```
+
+### Send a transaction with cast
+```bash
+cast send <CONTRACT_ADDRESS> --rpc-url http://localhost:8545 --private-key 0xac0974... "postMessage(string)" "Hello"
+```
+
+### View logs
+```bash
+cast logs --rpc-url http://localhost:8545 --from-block 0 --to-block latest --address <CONTRACT_ADDRESS> "MessagePosted(address,string,uint256)"
+```
