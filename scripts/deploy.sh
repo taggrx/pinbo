@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy contract, post test message, fetch logs
+# Deploy Pinbo contract
 # Requires Anvil running locally on default port (8545)
 
 set -e
@@ -17,17 +17,14 @@ fi
 : "${LOCAL_RPC_URL:?LOCAL_RPC_URL not set}"
 : "${LOCAL_PRIVATE_KEY:?LOCAL_PRIVATE_KEY not set}"
 
-echo "=== Pinbo Local Test Workflow ==="
-echo ""
+echo "Deploying Pinbo contract..."
 
-# Step 1: Deploy contract
-echo "1. Deploying Pinbo contract..."
 DEPLOY_OUTPUT=$(PATH="$HOME/.foundry/bin:$PATH" forge script script/Deploy.s.sol:Deploy \
     --rpc-url "$LOCAL_RPC_URL" \
     --private-key "$LOCAL_PRIVATE_KEY" \
     --broadcast)
 
-# Extract contract address from output (simplistic)
+# Extract contract address from output
 CONTRACT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep -oE "Pinbo deployed at: 0x[a-fA-F0-9]{40}" | cut -d' ' -f4)
 if [ -z "$CONTRACT_ADDRESS" ]; then
     echo "Failed to extract contract address from output"
@@ -35,8 +32,7 @@ if [ -z "$CONTRACT_ADDRESS" ]; then
     exit 1
 fi
 
-echo "   Contract deployed at: $CONTRACT_ADDRESS"
-echo ""
+echo "Contract deployed at: $CONTRACT_ADDRESS"
 
 # Update .env.local with contract address
 if grep -q "PINBO_CONTRACT_ADDRESS=" .env.local 2>/dev/null; then
@@ -44,7 +40,7 @@ if grep -q "PINBO_CONTRACT_ADDRESS=" .env.local 2>/dev/null; then
 else
     echo "PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> .env.local
 fi
-echo "   Updated .env.local with contract address"
+echo "Updated .env.local"
 
 # Update frontend/.env with contract address
 if [ -f frontend/.env ]; then
@@ -53,36 +49,10 @@ if [ -f frontend/.env ]; then
     else
         echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> frontend/.env
     fi
-    echo "   Updated frontend/.env with contract address"
+    echo "Updated frontend/.env"
 else
     echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" > frontend/.env
-    echo "   Created frontend/.env with contract address"
+    echo "Created frontend/.env"
 fi
-echo ""
 
-# Wait a moment for block inclusion
-sleep 2
-
-# Step 2: Post a test message
-echo "2. Posting test message..."
-TEST_MESSAGE="Hello from local test!"
-cast send "$CONTRACT_ADDRESS" \
-    --rpc-url "$LOCAL_RPC_URL" \
-    --private-key "$LOCAL_PRIVATE_KEY" \
-    "postMessage(string)" "$TEST_MESSAGE"
-
-echo "   Posted: \"$TEST_MESSAGE\""
-echo ""
-
-# Step 3: Fetch logs
-echo "3. Fetching recent logs..."
-echo ""
-cast logs \
-    --rpc-url "$LOCAL_RPC_URL" \
-    --from-block 0 \
-    --to-block latest \
-    --address "$CONTRACT_ADDRESS" \
-    "MessagePosted(address,string,uint256)"
-
-echo ""
-echo "=== Workflow completed successfully ==="
+echo "Done!"

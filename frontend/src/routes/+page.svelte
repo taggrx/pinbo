@@ -34,7 +34,6 @@
       await postMessage(newMessage.trim());
       newMessage = '';
     } catch (err) {
-      console.error('Failed to post message:', err);
       alert('Failed to post message: ' + (err as Error).message);
     } finally {
       posting = false;
@@ -79,7 +78,6 @@
             bind:value={newMessage}
             placeholder="WHAT'S ON YOUR MIND?"
             rows="3"
-            maxlength="280"
           ></textarea>
           <button class="btn" on:click={handlePost} disabled={posting || !newMessage.trim()}>
             {posting ? 'POSTING...' : 'POST'}
@@ -89,7 +87,6 @@
     {:else}
       <div class="card text-center">
         <h2>CONNECT YOUR WALLET TO POST MESSAGES</h2>
-        <p>USE METAMASK OR WALLETCONNECT TO CONNECT TO THE LOCAL ANVIL NETWORK.</p>
       </div>
     {/if}
 

@@ -25,6 +25,9 @@ if [ $# -eq 0 ]; then
 fi
 MESSAGE="$1"
 
+# Convert string to hex for bytes parameter
+MESSAGE_HEX=$(printf '%s' "$MESSAGE" | xxd -p -u | tr -d '\n')
+
 echo "Posting message to contract $PINBO_CONTRACT_ADDRESS..."
 echo "Message: $MESSAGE"
 
@@ -32,6 +35,6 @@ echo "Message: $MESSAGE"
 cast send "$PINBO_CONTRACT_ADDRESS" \
     --rpc-url "$LOCAL_RPC_URL" \
     --private-key "$LOCAL_PRIVATE_KEY" \
-    "postMessage(string)" "$MESSAGE"
+    "postMessage(bytes)" "$MESSAGE_HEX"
 
 echo "Transaction sent successfully!"

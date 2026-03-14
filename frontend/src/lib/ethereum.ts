@@ -1,7 +1,8 @@
 import { writable, get } from 'svelte/store';
-import { createPublicClient, createWalletClient, custom, http, parseAbiItem } from 'viem';
+import { createPublicClient, createWalletClient, custom, http, parseAbiItem, hexToBytes, bytesToHex } from 'viem';
 import { anvil } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
+import pako from 'pako';
 
 // Types
 type EthereumProvider = any; // TODO: better type
@@ -53,7 +54,7 @@ export function disconnect() {
   walletClient = null;
 }
 
-// Post a message
+// Post a message (compress with max compression, fallback to plain bytes if larger)
 export async function postMessage(message: string) {
   if (!walletClient) {
     throw new Error('Not connected');
@@ -62,11 +63,28 @@ export async function postMessage(message: string) {
   if (!currentAccount) {
     throw new Error('No account');
   }
+  
+  const originalBytes = new TextEncoder().encode(message);
+  const compressed = pako.deflate(message, { level: 9 });
+  
+  const originalSize = originalBytes.length;
+  const compressedSize = compressed.length;
+  
+  let dataToStore: Uint8Array;
+  if (compressedSize < originalSize) {
+    console.log(`Compressed: ${originalSize} -> ${compressedSize} bytes (${(compressedSize / originalSize * 100).toFixed(1)}%)`);
+    dataToStore = compressed;
+  } else {
+    console.log(`Using plain bytes: ${originalSize} bytes (compression would be larger)`);
+    dataToStore = originalBytes;
+  }
+  
+  const dataHex = bytesToHex(dataToStore);
   const hash = await walletClient.writeContract({
     address: pinboContractAddress,
     abi: pinboAbi,
     functionName: 'postMessage',
-    args: [message],
+    args: [dataHex],
     account: currentAccount,
     chain: anvil,
   });
@@ -77,17 +95,27 @@ export async function postMessage(message: string) {
 export async function fetchMessages(limit = 50) {
   const logs = await publicClient.getLogs({
     address: pinboContractAddress,
-    event: parseAbiItem('event MessagePosted(address indexed sender, string message, uint256 timestamp)'),
+    event: parseAbiItem('event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'),
     fromBlock: 0n,
     toBlock: 'latest',
   });
-  // Transform logs
-  const messages = logs.map((log) => ({
-    sender: log.args.sender as `0x${string}`,
-    message: log.args.message as string,
-    timestamp: Number(log.args.timestamp) * 1000, // convert to ms
-    blockNumber: log.blockNumber,
-  }));
+  // Transform logs (decompress)
+  const messages = logs.map((log) => {
+    const messageHex = log.args.message as `0x${string}`;
+    const data = hexToBytes(messageHex);
+    let decompressed: string;
+    try {
+      decompressed = pako.inflate(data, { to: 'string' });
+    } catch {
+      decompressed = new TextDecoder().decode(data);
+    }
+    return {
+      sender: log.args.sender as `0x${string}`,
+      message: decompressed,
+      timestamp: Number(log.args.timestamp) * 1000, // convert to ms
+      blockNumber: log.blockNumber,
+    };
+  });
   // Sort by timestamp descending (newest first)
   messages.sort((a, b) => b.timestamp - a.timestamp);
   return messages.slice(0, limit);
@@ -101,9 +129,17 @@ export function watchMessages(callback: (message: any) => void) {
     eventName: 'MessagePosted',
     onLogs: (logs) => {
       logs.forEach((log) => {
+        const messageHex = log.args.message as `0x${string}`;
+        const data = hexToBytes(messageHex);
+        let decompressed: string;
+        try {
+          decompressed = pako.inflate(data, { to: 'string' });
+        } catch {
+          decompressed = new TextDecoder().decode(data);
+        }
         callback({
           sender: log.args.sender,
-          message: log.args.message,
+          message: decompressed,
           timestamp: Number(log.args.timestamp) * 1000,
           blockNumber: log.blockNumber,
         });
