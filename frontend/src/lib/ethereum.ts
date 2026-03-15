@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { createPublicClient, createWalletClient, custom, http, parseAbiItem, hexToBytes, bytesToHex, decodeEventLog } from 'viem';
-import { anvil } from './chains';
+import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import pako from 'pako';
 
@@ -18,7 +18,7 @@ const STORAGE_KEY = 'pinbo_account';
 function getPublicClient() {
   const rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545';
   return createPublicClient({
-    chain: anvil,
+    chain: pinboChain,
     transport: http(rpcUrl),
   });
 }
@@ -32,6 +32,202 @@ export async function getFee(): Promise<bigint> {
     args: [],
   });
   return fee as bigint;
+}
+
+// Get latest message block from contract
+export async function getLatestMessageBlock(): Promise<bigint> {
+  console.log('[Paging] getLatestMessageBlock: calling contract');
+  try {
+    const block = await getPublicClient().readContract({
+      address: pinboContractAddress,
+      abi: pinboAbi,
+      functionName: 'latestMessageBlock',
+      args: [],
+    });
+    console.log('[Paging] getLatestMessageBlock: result =', block);
+    return block as bigint;
+  } catch (e) {
+    console.error('[Paging] getLatestMessageBlock: error =', e);
+    throw e;
+  }
+}
+
+// Get contract deployment block from environment
+const CONTRACT_DEPLOY_BLOCK = import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK ? BigInt(import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK) : 0n;
+
+// Page size in blocks for log fetching (most RPCs can handle ~1000 blocks per request)
+const PAGE_SIZE = 1000n;
+
+// Fetch logs in a specific block range (inclusive)
+async function fetchLogsInRange(fromBlock: bigint, toBlock: bigint): Promise<any[]> {
+  if (fromBlock > toBlock) {
+    // Swap to ensure fromBlock <= toBlock
+    [fromBlock, toBlock] = [toBlock, fromBlock];
+  }
+  console.log('[Paging] getLogs from', fromBlock, 'to', toBlock);
+  try {
+    const logs = await getPublicClient().getLogs({
+      address: pinboContractAddress,
+      event: parseAbiItem('event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'),
+      fromBlock,
+      toBlock,
+    });
+    console.log('[Paging] getLogs: got', logs.length, 'logs');
+    // Transform logs (decompress)
+    const messages = logs.map((log) => {
+      const messageHex = log.args.message as `0x${string}`;
+      const data = hexToBytes(messageHex);
+      let decompressed: string;
+      try {
+        decompressed = pako.inflate(data, { to: 'string' });
+      } catch {
+        decompressed = new TextDecoder().decode(data);
+      }
+      return {
+        sender: log.args.sender as `0x${string}`,
+        message: decompressed,
+        timestamp: Number(log.args.timestamp) * 1000, // convert to ms
+        blockNumber: log.blockNumber,
+        txHash: log.transactionHash,
+      };
+    });
+    // Sort by timestamp descending (newest first)
+    messages.sort((a, b) => b.timestamp - a.timestamp);
+    return messages;
+  } catch (e) {
+    console.error('[Paging] getLogs: error =', e);
+    throw e;
+  }
+}
+
+// Create a message loader with pagination state
+export function createMessageLoader() {
+  let oldestBlockQueried: bigint | null = null;
+  let latestBlockQueried: bigint | null = null;
+  
+  async function loadInitial(targetCount = 50): Promise<{ messages: any[], hasMore: boolean }> {
+    const latestBlock = await getLatestMessageBlock();
+    const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
+    const deployBlock = CONTRACT_DEPLOY_BLOCK;
+    
+    let currentFromBlock = startBlock;
+    const collected: any[] = [];
+    
+    while (collected.length < targetCount && currentFromBlock > deployBlock) {
+      const pageToBlock = currentFromBlock;
+      const pageFromBlock = currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
+      
+      const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
+      // Append because we're going from newest to oldest blocks
+      collected.push(...pageMessages);
+      
+      currentFromBlock = pageFromBlock - 1n;
+      if (pageFromBlock === deployBlock) {
+        break;
+      }
+    }
+    
+    // Sort collected by timestamp descending (newest first) - already correct but ensure
+    collected.sort((a, b) => b.timestamp - a.timestamp);
+    
+    oldestBlockQueried = currentFromBlock;
+    latestBlockQueried = startBlock;
+    
+    return {
+      messages: collected,
+      hasMore: oldestBlockQueried > deployBlock,
+    };
+  }
+  
+  async function loadInitialStreaming(targetCount = 50, onPage?: (pageMessages: any[]) => void): Promise<{ messages: any[], hasMore: boolean }> {
+    console.log('[Paging] loadInitialStreaming: starting');
+    const latestBlock = await getLatestMessageBlock();
+    console.log('[Paging] latestMessageBlock:', latestBlock);
+    const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
+    console.log('[Paging] startBlock:', startBlock);
+    const deployBlock = CONTRACT_DEPLOY_BLOCK;
+    console.log('[Paging] deployBlock:', deployBlock);
+    
+    let currentFromBlock = startBlock;
+    const collected: any[] = [];
+    
+    while (collected.length < targetCount && currentFromBlock > deployBlock) {
+      console.log('[Paging] fetching from', currentFromBlock - PAGE_SIZE, 'to', currentFromBlock);
+      const pageToBlock = currentFromBlock;
+      const pageFromBlock = currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
+      
+      const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
+      console.log('[Paging] got', pageMessages.length, 'messages in this page');
+      // Append because we're going from newest to oldest blocks
+      collected.push(...pageMessages);
+      if (onPage) {
+        // Call onPage with messages sorted newest first (they already are)
+        onPage([...pageMessages]);
+      }
+      
+      currentFromBlock = pageFromBlock - 1n;
+      console.log('[Paging] total collected:', collected.length);
+      if (pageFromBlock === deployBlock) {
+        break;
+      }
+    }
+    
+    // Sort collected by timestamp descending (newest first)
+    collected.sort((a, b) => b.timestamp - a.timestamp);
+    
+    oldestBlockQueried = currentFromBlock;
+    latestBlockQueried = startBlock;
+    console.log('[Paging] done. hasMore:', oldestBlockQueried > deployBlock);
+    
+    return {
+      messages: collected,
+      hasMore: oldestBlockQueried > deployBlock,
+    };
+  }
+  
+  async function loadMore(targetCount = 50): Promise<{ messages: any[], hasMore: boolean }> {
+    if (!oldestBlockQueried) {
+      throw new Error('Must call loadInitial first');
+    }
+    const deployBlock = CONTRACT_DEPLOY_BLOCK;
+    if (oldestBlockQueried <= deployBlock) {
+      return { messages: [], hasMore: false };
+    }
+    
+    let currentFromBlock = oldestBlockQueried;
+    const collected: any[] = [];
+    
+    while (collected.length < targetCount && currentFromBlock > deployBlock) {
+      const pageToBlock = currentFromBlock;
+      const pageFromBlock = currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
+      
+      const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
+      // Append because we're going from newest to oldest blocks
+      collected.push(...pageMessages);
+      
+      currentFromBlock = pageFromBlock - 1n;
+      if (pageFromBlock === deployBlock) {
+        break;
+      }
+    }
+    
+    // Sort collected by timestamp descending (newest first)
+    collected.sort((a, b) => b.timestamp - a.timestamp);
+    
+    oldestBlockQueried = currentFromBlock;
+    
+    return {
+      messages: collected,
+      hasMore: oldestBlockQueried > deployBlock,
+    };
+  }
+  
+  return {
+    loadInitial,
+    loadInitialStreaming,
+    loadMore,
+    getState: () => ({ oldestBlockQueried, latestBlockQueried }),
+  };
 }
 
 // Wallet client (for sending transactions)
@@ -146,35 +342,10 @@ export async function postMessage(message: string) {
   return hash;
 }
 
-// Fetch past messages (events)
+// Fetch past messages (events) - legacy function, uses pagination loader
 export async function fetchMessages(limit = 50) {
-  // Start from Sepolia deployment block to avoid RPC limit
-  const logs = await getPublicClient().getLogs({
-    address: pinboContractAddress,
-    event: parseAbiItem('event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'),
-    fromBlock: 10420000n,
-    toBlock: 'latest',
-  });
-  // Transform logs (decompress)
-  const messages = logs.map((log) => {
-    const messageHex = log.args.message as `0x${string}`;
-    const data = hexToBytes(messageHex);
-    let decompressed: string;
-    try {
-      decompressed = pako.inflate(data, { to: 'string' });
-    } catch {
-      decompressed = new TextDecoder().decode(data);
-    }
-    return {
-      sender: log.args.sender as `0x${string}`,
-      message: decompressed,
-      timestamp: Number(log.args.timestamp) * 1000, // convert to ms
-      blockNumber: log.blockNumber,
-      txHash: log.transactionHash,
-    };
-  });
-  // Sort by timestamp descending (newest first)
-  messages.sort((a, b) => b.timestamp - a.timestamp);
+  const loader = createMessageLoader();
+  const { messages } = await loader.loadInitial(limit);
   return messages.slice(0, limit);
 }
 

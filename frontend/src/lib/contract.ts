@@ -6,6 +6,7 @@ export const pinboContractAddress = (import.meta.env.VITE_PINBO_CONTRACT_ADDRESS
 // ABI from JSON (already in correct format)
 export const pinboAbi = parseAbi([
   'function fee() view returns (uint256)',
+  'function latestMessageBlock() view returns (uint256)',
   'function postMessage(bytes message) payable',
   'event MessagePosted(address indexed sender, bytes message, uint256 timestamp)',
 ]);

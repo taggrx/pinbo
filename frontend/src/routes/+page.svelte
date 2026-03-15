@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages, getMessageByTxHash } from '$lib/ethereum';
+  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages, getMessageByTxHash, createMessageLoader } from '$lib/ethereum';
   import { fade } from 'svelte/transition';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
@@ -12,6 +12,10 @@
   let loading = $state(true);
   let unwatch: (() => void) | null = null;
   let permalinkMessage = $state<any | null>(null);
+  let messageLoader = $state<any>(null);
+  let hasMore = $state(false);
+  let loadingMore = $state(false);
+  const rpcUrl = (import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545').replace(/^https?:\/\//, '');
 
   function getMessageLink(txHash: string) {
     return `#/message/${txHash}`;
@@ -37,7 +41,17 @@
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     try {
-      messages = await fetchMessages();
+      messageLoader = createMessageLoader();
+      const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
+        // First page: replace messages, subsequent pages append to end
+        if (messages.length === 0) {
+          messages = pageMessages;
+        } else {
+          // Older pages should be appended at the end (since they are older)
+          messages = [...messages, ...pageMessages];
+        }
+      });
+      hasMore = more;
     } catch (err) {
       console.error('Failed to fetch messages:', err);
     } finally {
@@ -59,6 +73,20 @@
       window.removeEventListener('hashchange', handleHashChange);
     }
   });
+
+  async function handleLoadMore() {
+    if (!messageLoader || loadingMore) return;
+    loadingMore = true;
+    try {
+      const { messages: newMessages, hasMore: more } = await messageLoader.loadMore(50);
+      messages = [...messages, ...newMessages];
+      hasMore = more;
+    } catch (err) {
+      console.error('Failed to load more messages:', err);
+    } finally {
+      loadingMore = false;
+    }
+  }
 
   async function handlePost() {
     if (!newMessage.trim() || posting) return;
@@ -165,10 +193,20 @@
             </div>
           {/each}
         </div>
+        {#if hasMore}
+          <div class="load-more">
+            <button class="btn" onclick={handleLoadMore} disabled={loadingMore}>
+              {loadingMore ? 'LOADING...' : 'MORE'}
+            </button>
+          </div>
+        {/if}
       {/if}
     </div>
     {/if}
   </main>
+  <footer class="footer">
+    RPC: {rpcUrl}
+  </footer>
 </div>
 
 <style>
@@ -308,5 +346,19 @@
   .message-text {
     margin: 0;
     line-height: 1.5;
+  }
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+  }
+  .footer {
+    margin-top: 4rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--surface-alt);
+    text-align: center;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
   }
 </style>

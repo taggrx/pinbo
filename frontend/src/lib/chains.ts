@@ -1,8 +1,14 @@
 import { defineChain } from 'viem';
 
-export const anvil = defineChain({
-  id: 31337,
-  name: 'Anvil',
+// Get chain configuration from environment
+const CHAIN_ID = import.meta.env.VITE_CHAIN_ID ? parseInt(import.meta.env.VITE_CHAIN_ID) : 31337;
+const RPC_URL = import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545';
+
+export const pinboChain = defineChain({
+  id: CHAIN_ID,
+  name: CHAIN_ID === 31337 ? 'Anvil' : 
+        CHAIN_ID === 11155111 ? 'Sepolia' :
+        CHAIN_ID === 1 ? 'Mainnet' : `Chain ${CHAIN_ID}`,
   nativeCurrency: {
     name: 'Ether',
     symbol: 'ETH',
@@ -10,7 +16,10 @@ export const anvil = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545'],
+      http: [RPC_URL],
     },
   },
 });
+
+// Backward compatibility
+export const anvil = pinboChain;

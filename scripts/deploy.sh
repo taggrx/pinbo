@@ -120,31 +120,80 @@ fi
 
 echo "Contract deployed at: $CONTRACT_ADDRESS"
 
+# Try to extract transaction hash from forge output
+TX_HASH=$(echo "$DEPLOY_OUTPUT" | grep -oE "Transaction hash: 0x[a-fA-F0-9]{64}" | cut -d' ' -f3)
+DEPLOY_BLOCK=""
+
+if [ -n "$TX_HASH" ]; then
+    echo "Deployment transaction hash: $TX_HASH"
+    # Get block number from transaction receipt
+    if command -v cast >/dev/null 2>&1; then
+        DEPLOY_BLOCK=$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json | jq -r '.blockNumber' 2>/dev/null || echo "")
+        if [ -n "$DEPLOY_BLOCK" ] && [ "$DEPLOY_BLOCK" != "null" ]; then
+            echo "Deployment block number: $DEPLOY_BLOCK"
+        else
+            DEPLOY_BLOCK=""
+        fi
+    fi
+fi
+
+# Fallback: get current block number if deploy block not found
+if [ -z "$DEPLOY_BLOCK" ]; then
+    echo "Warning: Could not determine deployment block, using current block as fallback"
+    if command -v cast >/dev/null 2>&1; then
+        DEPLOY_BLOCK=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    fi
+    if [ -z "$DEPLOY_BLOCK" ]; then
+        DEPLOY_BLOCK="0"
+    fi
+fi
+
 # Update environment files
 echo "=== Updating environment files ==="
 
-# Update main .env.local with contract address
+# Update main .env.local with contract address and deploy block
 if [ -f "$ENV_FILE" ]; then
     if grep -q "PINBO_CONTRACT_ADDRESS=" "$ENV_FILE"; then
         sed -i "s|PINBO_CONTRACT_ADDRESS=.*|PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" "$ENV_FILE"
     else
         echo "PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$ENV_FILE"
     fi
+    # Add or update deploy block
+    if grep -q "CONTRACT_DEPLOY_BLOCK=" "$ENV_FILE"; then
+        sed -i "s|CONTRACT_DEPLOY_BLOCK=.*|CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK|" "$ENV_FILE"
+    else
+        echo "CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK" >> "$ENV_FILE"
+    fi
     echo "Updated $ENV_FILE"
 else
     echo "PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" > "$ENV_FILE"
+    echo "CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK" >> "$ENV_FILE"
     echo "Created $ENV_FILE"
 fi
 
-# Update frontend/.env with contract address and RPC URL
+# Update frontend/.env with contract address, RPC URL, chain ID, and deploy block
 FRONTEND_ENV="frontend/.env"
 if [ -f "$FRONTEND_ENV" ]; then
     sed -i "s|VITE_PINBO_CONTRACT_ADDRESS=.*|VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" "$FRONTEND_ENV"
     sed -i "s|VITE_LOCAL_RPC_URL=.*|VITE_LOCAL_RPC_URL=$RPC_URL|" "$FRONTEND_ENV"
+    # Add or update chain ID
+    if grep -q "VITE_CHAIN_ID=" "$FRONTEND_ENV"; then
+        sed -i "s|VITE_CHAIN_ID=.*|VITE_CHAIN_ID=$CHAIN_ID|" "$FRONTEND_ENV"
+    else
+        echo "VITE_CHAIN_ID=$CHAIN_ID" >> "$FRONTEND_ENV"
+    fi
+    # Add or update deploy block
+    if grep -q "VITE_CONTRACT_DEPLOY_BLOCK=" "$FRONTEND_ENV"; then
+        sed -i "s|VITE_CONTRACT_DEPLOY_BLOCK=.*|VITE_CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK|" "$FRONTEND_ENV"
+    else
+        echo "VITE_CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK" >> "$FRONTEND_ENV"
+    fi
     echo "Updated $FRONTEND_ENV"
 else
     echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" > "$FRONTEND_ENV"
     echo "VITE_LOCAL_RPC_URL=$RPC_URL" >> "$FRONTEND_ENV"
+    echo "VITE_CHAIN_ID=$CHAIN_ID" >> "$FRONTEND_ENV"
+    echo "VITE_CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK" >> "$FRONTEND_ENV"
     echo "Created $FRONTEND_ENV"
 fi
 
