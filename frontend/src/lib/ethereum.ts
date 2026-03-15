@@ -370,6 +370,18 @@ export async function postMessage(message: string) {
   }
   
   const dataHex = bytesToHex(dataToStore);
+  
+  // Estimate gas using public client
+  const publicClient = getPublicClient();
+  const gas = await publicClient.estimateContractGas({
+    address: pinboContractAddress,
+    abi: pinboAbi,
+    functionName: 'postMessage',
+    args: [dataHex],
+    account: currentAccount,
+    value: fee,
+  });
+  
   const hash = await walletClient.writeContract({
     address: pinboContractAddress,
     abi: pinboAbi,
@@ -377,7 +389,7 @@ export async function postMessage(message: string) {
     args: [dataHex],
     account: currentAccount,
     value: fee,
-    chain: null,
+    gas: gas,
   });
   return hash;
 }
