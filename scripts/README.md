@@ -77,10 +77,13 @@ forge script script/Deploy.s.sol:Deploy --rpc-url http://localhost:8545 --privat
 
 ### Send a transaction with cast
 ```bash
-cast send <CONTRACT_ADDRESS> --rpc-url http://localhost:8545 --private-key 0xac0974... "postMessage(string)" "Hello"
+# First get current fee
+FEE=$(cast call <CONTRACT_ADDRESS> "fee()" --rpc-url http://localhost:8545)
+# Send with exact fee value
+cast send <CONTRACT_ADDRESS> --rpc-url http://localhost:8545 --private-key 0xac0974... --value $FEE "postMessage(bytes)" "Hello"
 ```
 
 ### View logs
 ```bash
-cast logs --rpc-url http://localhost:8545 --from-block 0 --to-block latest --address <CONTRACT_ADDRESS> "MessagePosted(address,string,uint256)"
+cast logs --rpc-url http://localhost:8545 --from-block 0 --to-block latest --address <CONTRACT_ADDRESS> "MessagePosted(address,bytes,uint256)"
 ```

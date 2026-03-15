@@ -31,10 +31,16 @@ MESSAGE_HEX=$(printf '%s' "$MESSAGE" | xxd -p -u | tr -d '\n')
 echo "Posting message to contract $PINBO_CONTRACT_ADDRESS..."
 echo "Message: $MESSAGE"
 
-# Send transaction
+# Get current fee from contract
+FEE_HEX=$(cast call "$PINBO_CONTRACT_ADDRESS" "fee()" --rpc-url "$LOCAL_RPC_URL")
+FEE=$(cast --to-base "$FEE_HEX" 10)
+echo "Fee: $FEE wei"
+
+# Send transaction with exact fee
 cast send "$PINBO_CONTRACT_ADDRESS" \
     --rpc-url "$LOCAL_RPC_URL" \
     --private-key "$LOCAL_PRIVATE_KEY" \
+    --value "$FEE" \
     "postMessage(bytes)" "$MESSAGE_HEX"
 
 echo "Transaction sent successfully!"

@@ -7,35 +7,44 @@ import {Pinbo} from "../src/Pinbo.sol";
 contract PinboTest is Test {
     Pinbo public pinbo;
 
+    receive() external payable {}
+
     function setUp() public {
         pinbo = new Pinbo();
+        vm.deal(address(this), 1 ether);
     }
 
     function test_PostMessageEmitsEvent() public {
-        string memory message = "Hello, world!";
+        bytes memory message = "Hello, world!";
+        uint256 feeAmount = pinbo.fee();
         vm.expectEmit(true, false, false, true);
         emit MessagePosted(address(this), message, block.timestamp);
-        pinbo.postMessage(message);
+        pinbo.postMessage{value: feeAmount}(message);
     }
 
     function test_PostMessageUpdatesLatestBlock() public {
         uint256 initialBlock = pinbo.latestMessageBlock();
-        string memory message = "Update block";
-        pinbo.postMessage(message);
+        bytes memory message = "Update block";
+        uint256 feeAmount = pinbo.fee();
+        pinbo.postMessage{value: feeAmount}(message);
         uint256 newBlock = pinbo.latestMessageBlock();
         assertEq(newBlock, block.number);
         assertGt(newBlock, initialBlock);
     }
 
     function test_PostMessageEmptyString() public {
+        uint256 feeAmount = pinbo.fee();
         vm.expectRevert("Message cannot be empty");
-        pinbo.postMessage("");
+        pinbo.postMessage{value: feeAmount}("");
     }
 
+
+
     function test_PostMessageGasUsage() public {
-        string memory shortMessage = "Short";
+        bytes memory shortMessage = "Short";
+        uint256 feeAmount = pinbo.fee();
         uint256 gasStart = gasleft();
-        pinbo.postMessage(shortMessage);
+        pinbo.postMessage{value: feeAmount}(shortMessage);
         uint256 gasUsed = gasStart - gasleft();
 
         // Log gas usage for reference
@@ -46,29 +55,30 @@ contract PinboTest is Test {
     }
 
     function test_PostMessageLongString() public {
-        // Create a long string (500 bytes)
-        string memory longMessage = new string(500);
-        bytes memory b = bytes(longMessage);
-        for (uint256 i = 0; i < b.length; i++) {
-            b[i] = bytes1("a");
+        // Create a long bytes (500 bytes)
+        bytes memory longMessage = new bytes(500);
+        uint256 feeAmount = pinbo.fee();
+        for (uint256 i = 0; i < longMessage.length; i++) {
+            longMessage[i] = bytes1("a");
         }
 
         uint256 gasStart = gasleft();
-        pinbo.postMessage(longMessage);
+        pinbo.postMessage{value: feeAmount}(longMessage);
         uint256 gasUsed = gasStart - gasleft();
 
         console.log("Gas used for 500-byte message:", gasUsed);
-        // Long strings cost more gas but should still succeed
+        // Long bytes cost more gas but should still succeed
         assertLt(gasUsed, 500000);
     }
 
-    function testFuzz_PostMessage(string memory message) public {
-        // Skip empty strings in fuzzing
-        vm.assume(bytes(message).length > 0);
+    function testFuzz_PostMessage(bytes memory message) public {
+        // Skip empty bytes in fuzzing
+        vm.assume(message.length > 0);
 
+        uint256 feeAmount = pinbo.fee();
         vm.expectEmit(true, false, false, true);
         emit MessagePosted(address(this), message, block.timestamp);
-        pinbo.postMessage(message);
+        pinbo.postMessage{value: feeAmount}(message);
     }
 
     function test_InitialLatestMessageBlockIsZero() public {
@@ -77,4 +87,4 @@ contract PinboTest is Test {
 }
 
 // Helper event definition for vm.expectEmit
-event MessagePosted(address indexed sender, string message, uint256 timestamp);
+event MessagePosted(address indexed sender, bytes message, uint256 timestamp);

@@ -23,6 +23,17 @@ function getPublicClient() {
   });
 }
 
+// Get current fee from contract
+export async function getFee(): Promise<bigint> {
+  const fee = await getPublicClient().readContract({
+    address: pinboContractAddress,
+    abi: pinboAbi,
+    functionName: 'fee',
+    args: [],
+  });
+  return fee as bigint;
+}
+
 // Wallet client (for sending transactions)
 let walletClient: ReturnType<typeof createWalletClient> | null = null;
 
@@ -106,6 +117,9 @@ export async function postMessage(message: string) {
     throw new Error('No account');
   }
   
+  // Get current fee
+  const fee = await getFee();
+  
   const originalBytes = new TextEncoder().encode(message);
   const compressed = pako.deflate(message, { level: 9 });
   
@@ -126,6 +140,8 @@ export async function postMessage(message: string) {
     functionName: 'postMessage',
     args: [dataHex],
     account: currentAccount,
+    value: fee,
+    chain: null,
   });
   return hash;
 }
