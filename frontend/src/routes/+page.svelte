@@ -222,7 +222,7 @@
     margin-bottom: 2rem;
   }
   .logo {
-    font-size: 2.5rem;
+    font-size: 1rem;
     font-weight: 800;
     color: var(--primary);
     margin: 0;
@@ -250,7 +250,7 @@
   }
   .middot {
     color: var(--text-secondary);
-    margin: 0 0.25rem;
+    margin: 0 0.1rem;
   }
   .post-btn {
     background-color: var(--secondary);
