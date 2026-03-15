@@ -15,10 +15,13 @@ export const error = writable<string | null>(null);
 const STORAGE_KEY = 'pinbo_account';
 
 // Public client (read-only)
-export const publicClient = createPublicClient({
-  chain: anvil,
-  transport: http(),
-});
+function getPublicClient() {
+  const rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545';
+  return createPublicClient({
+    chain: anvil,
+    transport: http(rpcUrl),
+  });
+}
 
 // Wallet client (for sending transactions)
 let walletClient: ReturnType<typeof createWalletClient> | null = null;
@@ -39,8 +42,12 @@ export async function autoConnect() {
       return;
     }
     
+    // Get chain ID from wallet
+    const chainIdHex = await provider.request({ method: 'eth_chainId' });
+    const chainId = parseInt(chainIdHex, 16);
+    
     walletClient = createWalletClient({
-      chain: anvil,
+      chain: { id: chainId, name: 'Unknown', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [] } } },
       transport: custom(provider),
     });
     account.set(stored as `0x${string}`);
@@ -64,9 +71,13 @@ export async function connect() {
     error.set(null);
     localStorage.setItem(STORAGE_KEY, address);
     
-    // Create wallet client
+    // Get chain ID from wallet
+    const chainIdHex = await provider.request({ method: 'eth_chainId' });
+    const chainId = parseInt(chainIdHex, 16);
+    
+    // Create wallet client with wallet's chain
     walletClient = createWalletClient({
-      chain: anvil,
+      chain: { id: chainId, name: 'Unknown', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [] } } },
       transport: custom(provider),
     });
     
@@ -115,17 +126,17 @@ export async function postMessage(message: string) {
     functionName: 'postMessage',
     args: [dataHex],
     account: currentAccount,
-    chain: anvil,
   });
   return hash;
 }
 
 // Fetch past messages (events)
 export async function fetchMessages(limit = 50) {
-  const logs = await publicClient.getLogs({
+  // Start from Sepolia deployment block to avoid RPC limit
+  const logs = await getPublicClient().getLogs({
     address: pinboContractAddress,
     event: parseAbiItem('event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'),
-    fromBlock: 0n,
+    fromBlock: 10420000n,
     toBlock: 'latest',
   });
   // Transform logs (decompress)
@@ -153,7 +164,7 @@ export async function fetchMessages(limit = 50) {
 
 // Subscribe to new messages
 export function watchMessages(callback: (message: any) => void) {
-  return publicClient.watchContractEvent({
+  return getPublicClient().watchContractEvent({
     address: pinboContractAddress,
     abi: pinboAbi,
     eventName: 'MessagePosted',
@@ -181,12 +192,12 @@ export function watchMessages(callback: (message: any) => void) {
 
 // Get message by transaction hash
 export async function getMessageByTxHash(txHash: `0x${string}`) {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+  const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
   const log = receipt.logs.find((l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase());
   if (!log) throw new Error('Message not found');
   
   // Get block to get timestamp
-  const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
+  const block = await getPublicClient().getBlock({ blockNumber: log.blockNumber });
   const timestamp = Number(block.timestamp) * 1000;
   
   // Decode log using viem
