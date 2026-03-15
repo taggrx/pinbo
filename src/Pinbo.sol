@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 contract Pinbo {
     
     event MessagePosted(address indexed sender, bytes message, uint256 timestamp);
-    event FeeRecipientChanged(address indexed oldRecipient, address indexed newRecipient);
 
     uint256 public latestMessageBlock;
 
@@ -35,8 +34,6 @@ contract Pinbo {
         
         address oldRecipient = feeRecipient;
         feeRecipient = newRecipient;
-        
-        emit FeeRecipientChanged(oldRecipient, newRecipient);
     }
 
     function setFee(uint256 newFee) public {

@@ -91,25 +91,6 @@
   },
   {
     "type": "event",
-    "name": "FeeRecipientChanged",
-    "inputs": [
-      {
-        "name": "oldRecipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newRecipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "MessagePosted",
     "inputs": [
       {
