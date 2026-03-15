@@ -8,41 +8,19 @@ set -e
 NETWORK="${1:-local}"
 echo "Deploying to network: $NETWORK"
 
-# Load base environment
-if [ -f .env.local ]; then
-    source .env.local
-elif [ -f .env ]; then
-    source .env
-else
-    echo "Error: No .env.local or .env file found"
-    exit 1
-fi
-
-# Set network-specific variables
+# Determine env file for this network
 case "$NETWORK" in
     local|anvil)
-        RPC_URL="${LOCAL_RPC_URL:-http://localhost:8545}"
-        PRIVATE_KEY="${LOCAL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
-        CHAIN_ID="${LOCAL_CHAIN_ID:-31337}"
         ENV_FILE=".env.local"
         ;;
     sepolia)
-        RPC_URL="${SEPOLIA_RPC_URL:-https://rpc.sepolia.org}"
-        PRIVATE_KEY="${SEPOLIA_PRIVATE_KEY}"
-        CHAIN_ID="${SEPOLIA_CHAIN_ID:-11155111}"
-        ENV_FILE=".env.local"
+        ENV_FILE=".env.sepolia"
         ;;
     mainnet)
-        RPC_URL="${MAINNET_RPC_URL}"
-        PRIVATE_KEY="${MAINNET_PRIVATE_KEY}"
-        CHAIN_ID="${MAINNET_CHAIN_ID:-1}"
-        ENV_FILE=".env.local"
+        ENV_FILE=".env.mainnet"
         ;;
     custom)
-        RPC_URL="${CUSTOM_RPC_URL}"
-        PRIVATE_KEY="${CUSTOM_PRIVATE_KEY}"
-        CHAIN_ID="${CUSTOM_CHAIN_ID}"
-        ENV_FILE=".env.local"
+        ENV_FILE=".env.custom"
         ;;
     *)
         echo "Error: Unknown network '$NETWORK'. Valid options: local, sepolia, mainnet, custom"
@@ -50,22 +28,55 @@ case "$NETWORK" in
         ;;
 esac
 
-# Validate required variables
+# Load the network-specific env file
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
+elif [ -f .env ]; then
+    source .env
+else
+    echo "Error: No $ENV_FILE or .env file found"
+    exit 1
+fi
+
+# Set network-specific variables from loaded env
+case "$NETWORK" in
+    local|anvil)
+        RPC_URL="${LOCAL_RPC_URL:-http://localhost:8545}"
+        PRIVATE_KEY="${LOCAL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
+        CHAIN_ID="${LOCAL_CHAIN_ID:-31337}"
+        ;;
+    sepolia)
+        RPC_URL="${SEPOLIA_RPC_URL:-https://rpc.sepolia.org}"
+        PRIVATE_KEY="${SEPOLIA_PRIVATE_KEY}"
+        CHAIN_ID="${SEPOLIA_CHAIN_ID:-11155111}"
+        ;;
+    mainnet)
+        RPC_URL="${MAINNET_RPC_URL}"
+        PRIVATE_KEY="${MAINNET_PRIVATE_KEY}"
+        CHAIN_ID="${MAINNET_CHAIN_ID:-1}"
+        ;;
+    custom)
+        RPC_URL="${CUSTOM_RPC_URL}"
+        PRIVATE_KEY="${CUSTOM_PRIVATE_KEY}"
+        CHAIN_ID="${CUSTOM_CHAIN_ID}"
+        ;;
+esac
+
 if [ -z "$RPC_URL" ]; then
     echo "Error: RPC_URL not set for network '$NETWORK'"
-    echo "Please set ${NETWORK^^}_RPC_URL in .env.local or .env"
+    echo "Please set RPC_URL in $ENV_FILE or .env"
     exit 1
 fi
 
 if [ -z "$PRIVATE_KEY" ]; then
     echo "Error: PRIVATE_KEY not set for network '$NETWORK'"
-    echo "Please set ${NETWORK^^}_PRIVATE_KEY in .env.local or .env"
+    echo "Please set PRIVATE_KEY in $ENV_FILE or .env"
     exit 1
 fi
 
 if [ -z "$CHAIN_ID" ]; then
     echo "Error: CHAIN_ID not set for network '$NETWORK'"
-    echo "Please set ${NETWORK^^}_CHAIN_ID in .env.local or .env"
+    echo "Please set CHAIN_ID in $ENV_FILE or .env"
     exit 1
 fi
 
