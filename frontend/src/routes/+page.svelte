@@ -5,6 +5,8 @@
   import { fade } from 'svelte/transition';
   import { marked } from 'marked';
   import Address from '$lib/components/Address.svelte';
+  import Message from '$lib/components/Message.svelte';
+  import { ROUTES, type Message as MessageType } from '$lib/types';
   import readme from '../../../README.md?raw';
 
   let aboutContent = $state('');
@@ -16,29 +18,25 @@
     });
   }
 
-  let messages = $state<any[]>([]);
+  let messages = $state<MessageType[]>([]);
   let newMessage = $state('');
   let posting = $state(false);
   let pendingTxHash = $state<string | null>(null);
   let loading = $state(true);
   let unwatch: (() => void) | null = null;
-  let permalinkMessage = $state<any | null>(null);
-  let messageLoader = $state<any>(null);
+  let permalinkMessage = $state<MessageType | null>(null);
+  let messageLoader = $state<ReturnType<typeof createMessageLoader> | null>(null);
   let hasMore = $state(false);
   let loadingMore = $state(false);
   let showPostForm = $state(false);
   let showAbout = $state(false);
   const rpcUrl = (import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545').replace(/^https?:\/\//, '');
 
-  function getMessageLink(txHash: string) {
-    return `#/message/${txHash}`;
-  }
-
   async function handleHashChange() {
-    if (typeof window === 'undefined') return;
+    if (!browser) return;
     const hash = window.location.hash;
     
-    if (hash === '#/about') {
+    if (hash === ROUTES.ABOUT) {
       showAbout = true;
     } else {
       showAbout = false;
@@ -88,7 +86,7 @@
 
   onDestroy(() => {
     if (unwatch) unwatch();
-    if (typeof window !== 'undefined') {
+    if (browser) {
       window.removeEventListener('hashchange', handleHashChange);
     }
   });
@@ -128,22 +126,13 @@
       posting = false;
     }
   }
-
-  function formatTime(timestamp: number) {
-    return new Date(timestamp).toLocaleString();
-  }
-
-  function renderMarkdown(text: string): string {
-    const html = marked.parse(text, { async: false }) as string;
-    return html;
-  }
 </script>
 
 <div class="container">
   <header class="header">
-    <h1 class="logo"><a href="#" onclick={() => permalinkMessage = null}>PINBO</a></h1>
+    <h1 class="logo"><a href="#" onclick={() => permalinkMessage = null}>PINBO.eth</a></h1>
     <div class="wallet-section">
-      <a href="#/about" class="about-link">About</a>
+      <a href={ROUTES.ABOUT} class="about-link">About</a>
       {#if $isConnected}
         <span class="middot">·</span>
         <div class="connected">
@@ -184,32 +173,18 @@
         {@html aboutContent}
       </div>
     {:else if permalinkMessage}
-      <div class="message card">
-        <div class="message-header">
-          <Address address={permalinkMessage.sender} showFull={true} />
-          <span class="timestamp">{permalinkMessage.timestamp ? formatTime(permalinkMessage.timestamp) : 'BLOCK ' + permalinkMessage.blockNumber}</span>
-        </div>
-        <div class="message-text">{@html renderMarkdown(permalinkMessage.message)}</div>
-      </div>
+      <Message message={permalinkMessage} showPermalink={false} />
     {:else}
     <div class="messages-section">
       {#if loading}
-        <div class="loading">LOADING MESSAGES...</div>
+        <div class="loading">LOADING...</div>
       {:else if messages.length === 0}
         <div class="empty">NO MESSAGES YET. BE THE FIRST TO POST!</div>
       {:else}
         <div class="messages-list">
           {#each messages as message (message.blockNumber)}
-            <div class="message card" transition:fade>
-              <div class="message-header">
-                <Address address={message.sender} showFull={true} />
-                <span class="message-meta">
-                  <span class="timestamp">{formatTime(message.timestamp)}</span>
-                  <span class="middot">·</span>
-                  <a href={getMessageLink(message.txHash)} class="permalink">PERMALINK</a>
-                </span>
-              </div>
-              <div class="message-text">{@html renderMarkdown(message.message)}</div>
+            <div transition:fade>
+              <Message {message} />
             </div>
           {/each}
         </div>
@@ -234,6 +209,9 @@
     font-family: 'Iosevka Charon', monospace;
     font-weight: 600;
     font-size: 1.05rem;
+  }
+  :global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
+    color: var(--orange);
   }
   .header {
     display: flex;
@@ -272,8 +250,10 @@
   }
   .middot {
     color: var(--text-secondary);
+    margin: 0 0.25rem;
   }
   .post-btn {
+    background-color: var(--secondary);
     margin-left: 0.5rem;
   }
   .btn-icon {
@@ -306,7 +286,7 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .btn.connect {
+  .btn.connect, .btn.post-btn {
     background-color: var(--secondary);
   }
   .post-section {
@@ -340,36 +320,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-  }
-  .message-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-  }
-  .timestamp {
-    color: var(--text-secondary);
-  }
-  .message-meta {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .middot {
-    color: var(--text-secondary);
-    margin: 0 0.25rem;
-  }
-  .permalink {
-    font-size: 0.75rem;
-  }
-  .message-text {
-    margin: 0;
-    line-height: 1.5;
-  }
-  .message-text :global(img) {
-    max-width: 100%;
-    height: auto;
   }
   .load-more {
     display: flex;

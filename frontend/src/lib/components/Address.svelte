@@ -4,10 +4,9 @@
   interface Props {
     address: string;
     showFull?: boolean;
-    link?: boolean;
   }
 
-  let { address, showFull = false, link = true }: Props = $props();
+  let { address, showFull = false }: Props = $props();
 
   let ensName = $state<string | null>(null);
   let loading = $state(true);
@@ -34,24 +33,16 @@
   }
 </script>
 
-{#if link}
-  <a href={getEtherscanLink()} class="address-link" target="_blank" rel="noopener noreferrer">
-    {#if loading}
-      <span class="loading">0x{address.slice(2, 6)}</span>
-    {:else}
-      {getDisplayName()}
-    {/if}
-  </a>
-{:else}
+<a href={getEtherscanLink()} class="address-link" target="_blank" rel="noopener noreferrer">
   {#if loading}
     <span class="loading">0x{address.slice(2, 6)}</span>
   {:else}
-    <span class="address-text">{getDisplayName()}</span>
+    {getDisplayName()}
   {/if}
-{/if}
+</a>
 
 <style>
-  .address-link, .address-text {
+  .address-link {
     color: var(--primary);
     text-decoration: none;
   }
