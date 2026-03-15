@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages } from '$lib/ethereum';
+  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages, getMessageByTxHash } from '$lib/ethereum';
   import { fade } from 'svelte/transition';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
@@ -10,9 +10,31 @@
   let posting = $state(false);
   let loading = $state(true);
   let unwatch: (() => void) | null = null;
+  let permalinkMessage = $state<any | null>(null);
+
+  function getMessageLink(txHash: string) {
+    return `#/message/${txHash}`;
+  }
+
+  async function handleHashChange() {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash;
+    const match = hash.match(/^#\/message\/(0x[a-fA-F0-9]{64})$/);
+    if (match) {
+      try {
+        permalinkMessage = await getMessageByTxHash(match[1] as `0x${string}`);
+      } catch (e) {
+        permalinkMessage = null;
+      }
+    } else {
+      permalinkMessage = null;
+    }
+  }
 
   onMount(async () => {
     await autoConnect();
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
     try {
       messages = await fetchMessages();
     } catch (err) {
@@ -28,13 +50,16 @@
 
   onDestroy(() => {
     if (unwatch) unwatch();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('hashchange', handleHashChange);
+    }
   });
 
   async function handlePost() {
     if (!newMessage.trim() || posting) return;
     posting = true;
     try {
-      await postMessage(newMessage.trim());
+      const txHash = await postMessage(newMessage.trim());
       newMessage = '';
     } catch (err) {
       alert('Failed to post message: ' + (err as Error).message);
@@ -63,21 +88,21 @@
 
 <div class="container">
   <header class="header">
-    <h1 class="logo">PINBO</h1>
+    <h1 class="logo"><a href="#" onclick={() => permalinkMessage = null}>PINBO</a></h1>
     <div class="wallet-section">
       {#if $isConnected}
         <div class="connected">
           <a href={getEtherscanLink($account!)} class="address" target="_blank" rel="noopener noreferrer">{formatAddress($account!)}</a>
-          <button class="btn disconnect" on:click={disconnect}>DISCONNECT</button>
+          <button class="btn disconnect" onclick={disconnect}>DISCONNECT</button>
         </div>
       {:else}
-        <button class="btn connect" on:click={connect}>CONNECT WALLET</button>
+        <button class="btn connect" onclick={connect}>CONNECT WALLET</button>
       {/if}
     </div>
   </header>
 
   <main>
-    {#if $isConnected}
+    {#if $isConnected && !permalinkMessage}
       <div class="post-section card">
         <h2>POST A MESSAGE</h2>
         <div class="input-group">
@@ -86,15 +111,23 @@
             bind:value={newMessage}
             rows="3"
           ></textarea>
-          <button class="btn" on:click={handlePost} disabled={posting || !newMessage.trim()}>
+          <button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
             {posting ? 'POSTING...' : 'POST'}
           </button>
         </div>
       </div>
     {/if}
 
+    {#if permalinkMessage}
+      <div class="message card">
+        <div class="message-header">
+          <a href={getEtherscanLink(permalinkMessage.sender)} class="sender" target="_blank" rel="noopener noreferrer">{formatAddress(permalinkMessage.sender)}</a>
+          <span class="timestamp">{permalinkMessage.timestamp ? formatTime(permalinkMessage.timestamp) : 'BLOCK ' + permalinkMessage.blockNumber}</span>
+        </div>
+        <div class="message-text">{@html renderMarkdown(permalinkMessage.message)}</div>
+      </div>
+    {:else}
     <div class="messages-section">
-      <h2>RECENT MESSAGES</h2>
       {#if loading}
         <div class="loading">LOADING MESSAGES...</div>
       {:else if messages.length === 0}
@@ -105,7 +138,11 @@
             <div class="message card" transition:fade>
               <div class="message-header">
                 <a href={getEtherscanLink(message.sender)} class="sender" target="_blank" rel="noopener noreferrer">{formatAddress(message.sender)}</a>
-                <span class="timestamp">{formatTime(message.timestamp)}</span>
+                <span class="message-meta">
+                  <span class="timestamp">{formatTime(message.timestamp)}</span>
+                  <span class="middot">·</span>
+                  <a href={getMessageLink(message.txHash)} class="permalink">PERMALINK</a>
+                </span>
               </div>
               <div class="message-text">{@html renderMarkdown(message.message)}</div>
             </div>
@@ -113,6 +150,7 @@
         </div>
       {/if}
     </div>
+    {/if}
   </main>
 </div>
 
@@ -135,6 +173,10 @@
     font-weight: 800;
     color: var(--primary);
     margin: 0;
+  }
+  .logo a {
+    color: inherit;
+    text-decoration: none;
   }
   .wallet-section {
     display: flex;
@@ -218,6 +260,7 @@
     font-weight: 600;
     color: var(--primary);
     text-decoration: none;
+    flex-shrink: 0;
   }
   .sender:hover {
     text-decoration: underline;
@@ -225,6 +268,18 @@
   }
   .timestamp {
     color: var(--text-secondary);
+  }
+  .message-meta {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .middot {
+    color: var(--text-secondary);
+    margin: 0 0.25rem;
+  }
+  .permalink {
+    font-size: 0.75rem;
   }
   .message-text {
     margin: 0;

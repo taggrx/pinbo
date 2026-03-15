@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { createPublicClient, createWalletClient, custom, http, parseAbiItem, hexToBytes, bytesToHex } from 'viem';
+import { createPublicClient, createWalletClient, custom, http, parseAbiItem, hexToBytes, bytesToHex, decodeEventLog } from 'viem';
 import { anvil } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import pako from 'pako';
@@ -103,10 +103,8 @@ export async function postMessage(message: string) {
   
   let dataToStore: Uint8Array;
   if (compressedSize < originalSize) {
-    console.log(`Compressed: ${originalSize} -> ${compressedSize} bytes (${(compressedSize / originalSize * 100).toFixed(1)}%)`);
     dataToStore = compressed;
   } else {
-    console.log(`Using plain bytes: ${originalSize} bytes (compression would be larger)`);
     dataToStore = originalBytes;
   }
   
@@ -145,6 +143,7 @@ export async function fetchMessages(limit = 50) {
       message: decompressed,
       timestamp: Number(log.args.timestamp) * 1000, // convert to ms
       blockNumber: log.blockNumber,
+      txHash: log.transactionHash,
     };
   });
   // Sort by timestamp descending (newest first)
@@ -173,8 +172,46 @@ export function watchMessages(callback: (message: any) => void) {
           message: decompressed,
           timestamp: Number(log.args.timestamp) * 1000,
           blockNumber: log.blockNumber,
+          txHash: log.transactionHash,
         });
       });
     },
   });
+}
+
+// Get message by transaction hash
+export async function getMessageByTxHash(txHash: `0x${string}`) {
+  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+  const log = receipt.logs.find((l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase());
+  if (!log) throw new Error('Message not found');
+  
+  // Get block to get timestamp
+  const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
+  const timestamp = Number(block.timestamp) * 1000;
+  
+  // Decode log using viem
+  const decoded = decodeEventLog({
+    abi: pinboAbi,
+    data: log.data,
+    topics: log.topics,
+  });
+  
+  const messageBytes = decoded.args.message as `0x${string}`;
+  const data = hexToBytes(messageBytes);
+  
+  // Try decompression first, fallback to plain bytes
+  let decompressed: string;
+  try {
+    decompressed = pako.inflate(data, { to: 'string' });
+  } catch {
+    decompressed = new TextDecoder().decode(data);
+  }
+  
+  return {
+    sender: decoded.args.sender as `0x${string}`,
+    message: decompressed,
+    timestamp,
+    blockNumber: log.blockNumber,
+    txHash: log.transactionHash,
+  };
 }
