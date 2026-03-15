@@ -10,7 +10,7 @@ contract Pinbo {
     // This fee is collected to fund future development of Pinbo.
     // By posting a message, you contribute to the sustainability of this decentralized app.
     address public feeRecipient;
-    uint256 public fee = 0.00001 ether;
+    uint256 public fee = 0.0001 ether;
 
     constructor() {
         // Set the deployer as the initial fee recipient

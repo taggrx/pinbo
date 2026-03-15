@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { createPublicClient, createWalletClient, custom, http, parseAbiItem, hexToBytes, bytesToHex, decodeEventLog } from 'viem';
+import { mainnet } from 'viem/chains';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import pako from 'pako';
@@ -13,6 +14,31 @@ export const isConnected = writable(false);
 export const error = writable<string | null>(null);
 
 const STORAGE_KEY = 'pinbo_account';
+
+// ENS resolution cache
+const ensCache = new Map<string, string | null>();
+
+function getEnsClient() {
+  const ensRpc = import.meta.env.VITE_ENS_RPC || 'https://1.rpc.thirdweb.com';
+  return createPublicClient({
+    chain: mainnet,
+    transport: http(ensRpc),
+  });
+}
+
+export async function resolveEns(address: `0x${string}`): Promise<string | null> {
+  if (ensCache.has(address)) {
+    return ensCache.get(address) || null;
+  }
+  try {
+    const ensName = await getEnsClient().getEnsName({ address });
+    ensCache.set(address, ensName || null);
+    return ensName;
+  } catch {
+    ensCache.set(address, null);
+    return null;
+  }
+}
 
 // Public client (read-only)
 function getPublicClient() {
@@ -77,11 +103,19 @@ async function fetchLogsInRange(fromBlock: bigint, toBlock: bigint): Promise<any
     const messages = logs.map((log) => {
       const messageHex = log.args.message as `0x${string}`;
       const data = hexToBytes(messageHex);
+      const storedSize = data.length;
       let decompressed: string;
       try {
         decompressed = pako.inflate(data, { to: 'string' });
       } catch {
         decompressed = new TextDecoder().decode(data);
+      }
+      const decompressedSize = new TextEncoder().encode(decompressed).length;
+      if (storedSize < decompressedSize) {
+        const ratio = ((1 - storedSize / decompressedSize) * 100).toFixed(1);
+        console.log(`[Compression] decompressed ${decompressedSize}B -> ${storedSize}B stored (${ratio}% reduction)`);
+      } else {
+        console.log(`[Compression] stored uncompressed`);
       }
       return {
         sender: log.args.sender as `0x${string}`,
@@ -321,6 +355,12 @@ export async function postMessage(message: string) {
   
   const originalSize = originalBytes.length;
   const compressedSize = compressed.length;
+  if (compressedSize < originalSize) {
+    const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+    console.log(`[Compression] ${originalSize}B -> ${compressedSize}B (${ratio}% reduction)`);
+  } else {
+    console.log(`[Compression] skipped (no improvement)`);
+  }
   
   let dataToStore: Uint8Array;
   if (compressedSize < originalSize) {

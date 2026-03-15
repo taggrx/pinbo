@@ -1,9 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { account, isConnected, connect, disconnect, autoConnect, fetchMessages, postMessage, watchMessages, getMessageByTxHash, createMessageLoader } from '$lib/ethereum';
+  import { browser } from '$app/environment';
+  import { account, isConnected, connect, disconnect, autoConnect, postMessage, watchMessages, getMessageByTxHash, createMessageLoader } from '$lib/ethereum';
   import { fade } from 'svelte/transition';
   import { marked } from 'marked';
-  import DOMPurify from 'dompurify';
+  import Address from '$lib/components/Address.svelte';
+  import readme from '../../../README.md?raw';
+
+  let aboutContent = $state('');
+  
+  if (browser) {
+    import('dompurify').then((module) => {
+      const DOMPurify = module.default;
+      aboutContent = DOMPurify.sanitize(marked.parse(readme, { async: false }) as string);
+    });
+  }
 
   let messages = $state<any[]>([]);
   let newMessage = $state('');
@@ -15,6 +26,8 @@
   let messageLoader = $state<any>(null);
   let hasMore = $state(false);
   let loadingMore = $state(false);
+  let showPostForm = $state(false);
+  let showAbout = $state(false);
   const rpcUrl = (import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545').replace(/^https?:\/\//, '');
 
   function getMessageLink(txHash: string) {
@@ -24,15 +37,21 @@
   async function handleHashChange() {
     if (typeof window === 'undefined') return;
     const hash = window.location.hash;
-    const match = hash.match(/^#\/message\/(0x[a-fA-F0-9]{64})$/);
-    if (match) {
-      try {
-        permalinkMessage = await getMessageByTxHash(match[1] as `0x${string}`);
-      } catch (e) {
+    
+    if (hash === '#/about') {
+      showAbout = true;
+    } else {
+      showAbout = false;
+      const match = hash.match(/^#\/message\/(0x[a-fA-F0-9]{64})$/);
+      if (match) {
+        try {
+          permalinkMessage = await getMessageByTxHash(match[1] as `0x${string}`);
+        } catch (e) {
+          permalinkMessage = null;
+        }
+      } else {
         permalinkMessage = null;
       }
-    } else {
-      permalinkMessage = null;
     }
   }
 
@@ -95,6 +114,7 @@
       const txHash = await postMessage(newMessage.trim());
       pendingTxHash = txHash;
       newMessage = '';
+      showPostForm = false;
       // Clear pendingTxHash after 60 seconds if event not received
       setTimeout(() => {
         if (pendingTxHash === txHash) {
@@ -109,21 +129,13 @@
     }
   }
 
-  function formatAddress(addr: string) {
-    return addr.slice(0, 6) + '...' + addr.slice(-4);
-  }
-
-  function getEtherscanLink(addr: string) {
-    return `https://etherscan.io/address/${addr}`;
-  }
-
   function formatTime(timestamp: number) {
     return new Date(timestamp).toLocaleString();
   }
 
   function renderMarkdown(text: string): string {
     const html = marked.parse(text, { async: false }) as string;
-    return DOMPurify.sanitize(html);
+    return html;
   }
 </script>
 
@@ -131,10 +143,14 @@
   <header class="header">
     <h1 class="logo"><a href="#" onclick={() => permalinkMessage = null}>PINBO</a></h1>
     <div class="wallet-section">
+      <a href="#/about" class="about-link">About</a>
       {#if $isConnected}
+        <span class="middot">·</span>
         <div class="connected">
-          <a href={getEtherscanLink($account!)} class="address" target="_blank" rel="noopener noreferrer">{formatAddress($account!)}</a>
-          <button class="btn disconnect" onclick={disconnect}>DISCONNECT</button>
+          <Address address={$account!} />
+          <button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
+          <span class="middot">·</span>
+          <button class="btn post-btn" onclick={() => showPostForm = !showPostForm}>POST</button>
         </div>
       {:else}
         <button class="btn connect" onclick={connect}>CONNECT WALLET</button>
@@ -146,27 +162,31 @@
     {#if $isConnected && !permalinkMessage}
       {#if pendingTxHash}
         <div class="loading">LOADING...</div>
-      {:else}
-        <div class="post-section card">
-          <h2>POST A MESSAGE</h2>
+      {:else if showPostForm}
+        <div class="post-section">
           <div class="input-group">
             <textarea
               class="input"
               bind:value={newMessage}
               rows="3"
+              placeholder="What's on your mind?"
             ></textarea>
             <button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
-              {posting ? 'POSTING...' : 'POST'}
+              {posting ? 'POSTING...' : 'SEND'}
             </button>
           </div>
         </div>
       {/if}
     {/if}
 
-    {#if permalinkMessage}
+    {#if showAbout}
+      <div class="about-section">
+        {@html aboutContent}
+      </div>
+    {:else if permalinkMessage}
       <div class="message card">
         <div class="message-header">
-          <a href={getEtherscanLink(permalinkMessage.sender)} class="sender" target="_blank" rel="noopener noreferrer">{formatAddress(permalinkMessage.sender)}</a>
+          <Address address={permalinkMessage.sender} showFull={true} />
           <span class="timestamp">{permalinkMessage.timestamp ? formatTime(permalinkMessage.timestamp) : 'BLOCK ' + permalinkMessage.blockNumber}</span>
         </div>
         <div class="message-text">{@html renderMarkdown(permalinkMessage.message)}</div>
@@ -182,7 +202,7 @@
           {#each messages as message (message.blockNumber)}
             <div class="message card" transition:fade>
               <div class="message-header">
-                <a href={getEtherscanLink(message.sender)} class="sender" target="_blank" rel="noopener noreferrer">{formatAddress(message.sender)}</a>
+                <Address address={message.sender} showFull={true} />
                 <span class="message-meta">
                   <span class="timestamp">{formatTime(message.timestamp)}</span>
                   <span class="middot">·</span>
@@ -236,22 +256,37 @@
   .wallet-section {
     display: flex;
     align-items: center;
+    gap: 1rem;
   }
   .connected {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
   }
-  .address {
-    background-color: var(--surface-alt);
-    padding: 0.5rem 1rem;
-    border-radius: 0.375rem;
+  .about-link {
+    color: var(--text-secondary);
     text-decoration: none;
+  }
+  .about-link:hover {
     color: var(--primary);
   }
-  .address:hover {
-    text-decoration: underline;
-    text-decoration-style: dotted;
+  .middot {
+    color: var(--text-secondary);
+  }
+  .post-btn {
+    margin-left: 0.5rem;
+  }
+  .btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+    margin-left: 0.25rem;
+  }
+  .btn-icon:hover {
+    color: var(--error);
   }
   .btn {
     background-color: var(--primary);
@@ -271,14 +306,12 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .btn.disconnect {
-    background-color: var(--error);
-  }
   .btn.connect {
     background-color: var(--secondary);
   }
   .post-section {
     margin-bottom: 2rem;
+    padding: 1rem 0;
   }
   .input-group {
     display: flex;
@@ -290,9 +323,6 @@
     resize: vertical;
     font-family: inherit;
     font-size: 1rem;
-  }
-  .messages-section h2 {
-    margin-bottom: 1rem;
   }
   .loading, .empty {
     text-align: center;
@@ -318,16 +348,6 @@
     margin-bottom: 0.5rem;
     font-size: 0.875rem;
   }
-  .sender {
-    font-weight: 600;
-    color: var(--primary);
-    text-decoration: none;
-    flex-shrink: 0;
-  }
-  .sender:hover {
-    text-decoration: underline;
-    text-decoration-style: dotted;
-  }
   .timestamp {
     color: var(--text-secondary);
   }
@@ -346,6 +366,10 @@
   .message-text {
     margin: 0;
     line-height: 1.5;
+  }
+  .message-text :global(img) {
+    max-width: 100%;
+    height: auto;
   }
   .load-more {
     display: flex;
