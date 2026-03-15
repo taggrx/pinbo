@@ -16,4 +16,4 @@ Each post will have its own permalink that can be shared with others.
 
 The cost of creating a post is the gas fee for sending a transaction to the Pinbo contract.
 The gas fee will depend on the current network congestion and the complexity of the post content.
-Additionally, the Pinbo app charges a small fee (currently 0.0001 ETH) for each post to fund future development.
+Additionally, the Pinbo app charges a small fee (currently 0.000025 ETH) for each post to fund future development.
