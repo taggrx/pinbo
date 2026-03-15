@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.13;
 
 contract Pinbo {
     
     event MessagePosted(address indexed sender, bytes message, uint256 timestamp);
+    event FeeRecipientChanged(address indexed oldRecipient, address indexed newRecipient);
 
     uint256 public latestMessageBlock;
 
@@ -31,9 +32,12 @@ contract Pinbo {
 
     function setFeeRecipient(address newRecipient) public {
         require(msg.sender == feeRecipient, "Only fee recipient");
+        require(newRecipient != address(0), "Cannot set to zero address");
         
         address oldRecipient = feeRecipient;
         feeRecipient = newRecipient;
+        
+        emit FeeRecipientChanged(oldRecipient, newRecipient);
     }
 
     function setFee(uint256 newFee) public {
