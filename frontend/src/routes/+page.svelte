@@ -8,6 +8,7 @@
   let messages = $state<any[]>([]);
   let newMessage = $state('');
   let posting = $state(false);
+  let pendingTxHash = $state<string | null>(null);
   let loading = $state(true);
   let unwatch: (() => void) | null = null;
   let permalinkMessage = $state<any | null>(null);
@@ -45,6 +46,10 @@
 
     unwatch = watchMessages((message) => {
       messages = [message, ...messages];
+      // Clear pendingTxHash if this is the transaction we're waiting for
+      if (pendingTxHash && message.txHash === pendingTxHash) {
+        pendingTxHash = null;
+      }
     });
   });
 
@@ -60,9 +65,17 @@
     posting = true;
     try {
       const txHash = await postMessage(newMessage.trim());
+      pendingTxHash = txHash;
       newMessage = '';
+      // Clear pendingTxHash after 60 seconds if event not received
+      setTimeout(() => {
+        if (pendingTxHash === txHash) {
+          pendingTxHash = null;
+        }
+      }, 60000);
     } catch (err) {
       alert('Failed to post message: ' + (err as Error).message);
+      pendingTxHash = null;
     } finally {
       posting = false;
     }
@@ -103,19 +116,23 @@
 
   <main>
     {#if $isConnected && !permalinkMessage}
-      <div class="post-section card">
-        <h2>POST A MESSAGE</h2>
-        <div class="input-group">
-          <textarea
-            class="input"
-            bind:value={newMessage}
-            rows="3"
-          ></textarea>
-          <button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
-            {posting ? 'POSTING...' : 'POST'}
-          </button>
+      {#if pendingTxHash}
+        <div class="loading">LOADING...</div>
+      {:else}
+        <div class="post-section card">
+          <h2>POST A MESSAGE</h2>
+          <div class="input-group">
+            <textarea
+              class="input"
+              bind:value={newMessage}
+              rows="3"
+            ></textarea>
+            <button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
+              {posting ? 'POSTING...' : 'POST'}
+            </button>
+          </div>
         </div>
-      </div>
+      {/if}
     {/if}
 
     {#if permalinkMessage}
@@ -243,6 +260,13 @@
     text-align: center;
     padding: 2rem;
     color: var(--text-secondary);
+  }
+  main > .loading {
+    margin: 2rem auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
   }
   .messages-list {
     display: flex;
