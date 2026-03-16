@@ -7,6 +7,9 @@ const config = {
 			fallback: 'index.html',
 			inlineStylesheets: 'always',
 		}),
+		paths: {
+			relative: true,
+		},
 	},
 	vitePlugin: {
 		dynamicCompileOptions: ({ filename }) =>
