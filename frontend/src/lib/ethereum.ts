@@ -51,7 +51,7 @@ export async function resolveEns(address: `0x${string}`): Promise<string | null>
 
 // Public client (read-only)
 function getPublicClient() {
-	const rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545';
+	const rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL;
 	return createPublicClient({
 		chain: pinboChain,
 		transport: http(rpcUrl),

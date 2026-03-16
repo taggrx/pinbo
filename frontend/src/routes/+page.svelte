@@ -50,10 +50,8 @@
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
 	let postError = $state<string | null>(null);
-	const rpcUrl = (import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545').replace(
-		/^https?:\/\//,
-		''
-	);
+	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
+	const rpcUrl = rpcUrlFull.replace(/^https?:\/\//, '');
 
 	async function handleHashChange() {
 		if (!browser) return;
@@ -232,7 +230,15 @@
 		{/if}
 	</main>
 	<footer class="footer">
-		RPC: {rpcUrl}
+		<a href={rpcUrlFull} target="_blank" rel="noopener noreferrer">RPC</a> &middot;
+		<a
+			href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`}
+			target="_blank"
+			rel="noopener noreferrer">Contract</a
+		>
+		&middot;
+		<a href="https://github.com/taggrx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
+		&middot; {__COMMIT_HASH__}
 	</footer>
 </div>
 
