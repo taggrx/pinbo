@@ -18,6 +18,18 @@
 	let { message, showPermalink = true }: Props = $props();
 
 	function formatTime(timestamp: number) {
+		const now = Date.now();
+		const diff = now - timestamp;
+		const seconds = Math.floor(diff / 1000);
+		const minutes = Math.floor(seconds / 60);
+		const hours = Math.floor(minutes / 60);
+		const days = Math.floor(hours / 24);
+
+		if (seconds < 60) return 'just now';
+		if (minutes < 60) return `${minutes}m ago`;
+		if (hours < 24) return `${hours}h ago`;
+		if (days < 7) return `${days}d ago`;
+
 		return new Date(timestamp).toLocaleString();
 	}
 
@@ -32,11 +44,15 @@
 		<Address address={message.sender} showFull={true} />
 		<span class="message-meta">
 			<span class="timestamp"
-				>{message.timestamp ? formatTime(message.timestamp) : 'BLOCK ' + message.blockNumber}</span
+				>{message.timestamp
+					? showPermalink
+						? formatTime(message.timestamp)
+						: new Date(message.timestamp).toLocaleString()
+					: 'BLOCK ' + message.blockNumber}</span
 			>
 			{#if showPermalink}
 				<span class="middot">·</span>
-				<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">PERMALINK</a>
+				<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
 			{/if}
 		</span>
 	</div>

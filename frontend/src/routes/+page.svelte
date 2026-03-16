@@ -204,6 +204,13 @@
 			</div>
 		{:else if permalinkMessage}
 			<Message message={permalinkMessage} showPermalink={false} />
+			<div class="permalink-tx">
+				TX: <a
+					href={`https://etherscan.io/tx/${permalinkMessage.txHash}`}
+					target="_blank"
+					rel="noopener noreferrer">{permalinkMessage.txHash}</a
+				>
+			</div>
 		{:else}
 			<div class="messages-section">
 				{#if loading}
@@ -360,6 +367,14 @@
 		justify-content: center;
 		margin-top: 2rem;
 		margin-bottom: 2rem;
+	}
+	.permalink-tx {
+		text-align: center;
+		margin-top: 2rem;
+		font-size: 0.75rem;
+		font-family: monospace;
+		color: var(--text-secondary);
+		word-break: break-all;
 	}
 	.footer {
 		margin-top: 4rem;
