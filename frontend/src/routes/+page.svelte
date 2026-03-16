@@ -15,6 +15,7 @@
 	} from '$lib/ethereum';
 	import { fade } from 'svelte/transition';
 	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
 	import TuiEditor from '$lib/components/TuiEditor.svelte';
@@ -24,10 +25,7 @@
 	let aboutContent = $state('');
 
 	if (browser) {
-		import('dompurify').then((module) => {
-			const DOMPurify = module.default;
-			aboutContent = DOMPurify.sanitize(marked.parse(readme, { async: false }) as string);
-		});
+		aboutContent = DOMPurify.sanitize(marked.parse(readme, { async: false }) as string);
 	}
 
 	let messages = $state<MessageType[]>([]);
@@ -162,7 +160,7 @@
 
 <div class="container">
 	<header class="header">
-		<h1 class="logo"><button onclick={() => (permalinkMessage = null)}>PINBO.eth</button></h1>
+		<h1 class="logo"><button onclick={() => (window.location.hash = '')}>PINBO.eth</button></h1>
 		<div class="wallet-section">
 			<a href={ROUTES.ABOUT} class="about-link">About</a>
 			{#if $isConnected}
@@ -274,6 +272,9 @@
 		padding: 0;
 		cursor: pointer;
 		font: inherit;
+	}
+	.logo button:hover {
+		opacity: 0.8;
 	}
 	.wallet-section {
 		display: flex;
