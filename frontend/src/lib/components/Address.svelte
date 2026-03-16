@@ -45,6 +45,7 @@
   .address-link {
     color: var(--primary);
     text-decoration: none;
+    font-family: monospace;
   }
   .address-link:hover {
     text-decoration: underline;

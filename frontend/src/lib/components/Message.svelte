@@ -64,9 +64,11 @@
   }
   .timestamp {
     color: var(--text-secondary);
+    font-family: monospace;
   }
   .permalink {
     font-size: 0.75rem;
+    font-family: monospace;
   }
   .message-text {
     margin: 0;

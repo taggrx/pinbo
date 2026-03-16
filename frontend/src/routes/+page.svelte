@@ -6,6 +6,7 @@
   import { marked } from 'marked';
   import Address from '$lib/components/Address.svelte';
   import Message from '$lib/components/Message.svelte';
+  import TuiEditor from '$lib/components/TuiEditor.svelte';
   import { ROUTES, type Message as MessageType } from '$lib/types';
   import readme from '../../../README.md?raw';
 
@@ -154,12 +155,7 @@
       {:else if showPostForm}
         <div class="post-section">
           <div class="input-group">
-            <textarea
-              class="input"
-              bind:value={newMessage}
-              rows="3"
-              placeholder="What's on your mind?"
-            ></textarea>
+            <TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
             <button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
               {posting ? 'POSTING...' : 'SEND'}
             </button>
@@ -206,12 +202,12 @@
 
 <style>
   :global(body) {
-    font-family: 'Iosevka Charon', monospace;
-    font-weight: 600;
+    font-family: Arial, sans-serif;
     font-size: 1.05rem;
   }
   :global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
     color: var(--orange);
+    font-family: 'Arial Narrow', Arial, sans-serif;
   }
   .header {
     display: flex;
@@ -226,6 +222,7 @@
     font-weight: 800;
     color: var(--primary);
     margin: 0;
+    font-family: 'Arial Narrow', sans-serif;
   }
   .logo a {
     color: inherit;
@@ -277,7 +274,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.2s;
-    font-family: inherit;
+    font-family: monospace;
   }
   .btn:hover {
     opacity: 0.9;
@@ -331,6 +328,7 @@
     margin-top: 4rem;
     padding: 1rem 0;
     border-top: 1px solid var(--surface-alt);
+    background: var(--background);
     text-align: center;
     font-size: 0.65rem;
     color: var(--text-secondary);
