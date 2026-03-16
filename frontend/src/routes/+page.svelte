@@ -8,6 +8,7 @@
 		disconnect,
 		autoConnect,
 		postMessage,
+		waitForMessage,
 		watchMessages,
 		getMessageByTxHash,
 		createMessageLoader,
@@ -30,17 +31,27 @@
 	}
 
 	let messages = $state<MessageType[]>([]);
-	let newMessage = $state('');
+	const DRAFT_KEY = 'pinbo_draft';
+	let newMessage = $state(browser ? (localStorage.getItem(DRAFT_KEY) ?? '') : '');
+
+	$effect(() => {
+		if (newMessage) {
+			localStorage.setItem(DRAFT_KEY, newMessage);
+		} else {
+			localStorage.removeItem(DRAFT_KEY);
+		}
+	});
 	let posting = $state(false);
 	let pendingTxHash = $state<string | null>(null);
 	let loading = $state(true);
 	let unwatch: (() => void) | null = null;
 	let permalinkMessage = $state<MessageType | null>(null);
-	let messageLoader = $state<ReturnType<typeof createMessageLoader> | null>(null);
+	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
 	let hasMore = $state(false);
 	let loadingMore = $state(false);
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
+	let postError = $state<string | null>(null);
 	const rpcUrl = (import.meta.env.VITE_LOCAL_RPC_URL || 'http://localhost:8545').replace(
 		/^https?:\/\//,
 		''
@@ -49,6 +60,7 @@
 	async function handleHashChange() {
 		if (!browser) return;
 		const hash = window.location.hash;
+		showPostForm = false;
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
@@ -125,19 +137,22 @@
 	async function handlePost() {
 		if (!newMessage.trim() || posting) return;
 		posting = true;
+		postError = null;
 		try {
 			const txHash = await postMessage(newMessage.trim());
 			pendingTxHash = txHash;
 			newMessage = '';
+			localStorage.removeItem(DRAFT_KEY);
 			showPostForm = false;
-			// Clear pendingTxHash after 60 seconds if event not received
-			setTimeout(() => {
-				if (pendingTxHash === txHash) {
-					pendingTxHash = null;
-				}
-			}, 60000);
+			const message = await waitForMessage(txHash);
+			if (!messages.some((m) => m.txHash === message.txHash)) {
+				messages = [message, ...messages];
+			}
+			pendingTxHash = null;
 		} catch (err) {
-			alert('Failed to post message: ' + (err as Error).message);
+			const message = (err as Error).message;
+			postError = message.split('\n')[0];
+			console.error(message);
 			pendingTxHash = null;
 		} finally {
 			posting = false;
@@ -147,7 +162,7 @@
 
 <div class="container">
 	<header class="header">
-		<h1 class="logo"><a href="#" onclick={() => (permalinkMessage = null)}>PINBO.eth</a></h1>
+		<h1 class="logo"><button onclick={() => (permalinkMessage = null)}>PINBO.eth</button></h1>
 		<div class="wallet-section">
 			<a href={ROUTES.ABOUT} class="about-link">About</a>
 			{#if $isConnected}
@@ -156,7 +171,11 @@
 					<Address address={$account!} />
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
 					<span class="middot">·</span>
-					<button class="btn post-btn" onclick={() => (showPostForm = !showPostForm)}>POST</button>
+					<button
+						class="btn post-btn"
+						onclick={() => (showPostForm = !showPostForm)}
+						disabled={showAbout || !!permalinkMessage}>POST</button
+					>
 				</div>
 			{:else}
 				<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
@@ -165,15 +184,18 @@
 	</header>
 
 	<main>
-		{#if $isConnected && !permalinkMessage}
+		{#if $isConnected && !permalinkMessage && !showAbout}
 			{#if pendingTxHash}
 				<div class="loading">LOADING...</div>
 			{:else if showPostForm}
 				<div class="post-section">
 					<div class="input-group">
 						<TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
+						{#if postError}
+							<div class="post-error">{postError}</div>
+						{/if}
 						<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
-							{posting ? 'POSTING...' : 'SEND'}
+							{posting ? 'SENDING' : 'SEND'}
 						</button>
 					</div>
 				</div>
@@ -241,13 +263,17 @@
 	.logo {
 		font-size: 1rem;
 		font-weight: 800;
-		color: var(--primary);
+		color: var(--orange);
 		margin: 0;
 		font-family: 'Arial Narrow', sans-serif;
 	}
-	.logo a {
+	.logo button {
 		color: inherit;
-		text-decoration: none;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font: inherit;
 	}
 	.wallet-section {
 		display: flex;
@@ -258,6 +284,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		font-size: 0.95rem;
 	}
 	.about-link {
 		color: var(--text-secondary);
@@ -286,27 +313,13 @@
 	.btn-icon:hover {
 		color: var(--error);
 	}
-	.btn {
-		background-color: var(--primary);
-		color: var(--bg0);
-		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 0.375rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: opacity 0.2s;
-		font-family: monospace;
-	}
-	.btn:hover {
-		opacity: 0.9;
-	}
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
 	.btn.connect,
 	.btn.post-btn {
 		background-color: var(--secondary);
+	}
+	.post-error {
+		color: var(--error);
+		font-size: 0.875rem;
 	}
 	.post-section {
 		margin-bottom: 2rem;
@@ -316,12 +329,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-	}
-	textarea.input {
-		min-height: 80px;
-		resize: vertical;
-		font-family: inherit;
-		font-size: 1rem;
 	}
 	.loading,
 	.empty {

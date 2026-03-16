@@ -11,10 +11,14 @@
 	// @ts-ignore - no types available
 	let editor: Editor;
 
+	const MODE_KEY = 'pinbo_editor_mode';
+
 	onMount(() => {
+		const savedMode = (localStorage.getItem(MODE_KEY) as 'wysiwyg' | 'markdown') ?? 'wysiwyg';
+
 		editor = new Editor({
 			el: container,
-			initialEditType: 'wysiwyg',
+			initialEditType: savedMode,
 			previewStyle: 'tab',
 			height: '200px',
 			placeholder,
@@ -27,8 +31,16 @@
 			],
 		});
 
+		if (value) {
+			editor.setHTML(value);
+		}
+
 		editor.on('change', () => {
 			value = editor.getHTML();
+		});
+
+		editor.on('changeMode', (mode: string) => {
+			localStorage.setItem(MODE_KEY, mode);
 		});
 	});
 

@@ -154,41 +154,6 @@ export function createMessageLoader() {
 	let oldestBlockQueried: bigint | null = null;
 	let latestBlockQueried: bigint | null = null;
 
-	async function loadInitial(targetCount = 50): Promise<{ messages: any[]; hasMore: boolean }> {
-		const latestBlock = await getLatestMessageBlock();
-		const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
-		const deployBlock = CONTRACT_DEPLOY_BLOCK;
-
-		let currentFromBlock = startBlock;
-		const collected: any[] = [];
-
-		while (collected.length < targetCount && currentFromBlock > deployBlock) {
-			const pageToBlock = currentFromBlock;
-			const pageFromBlock =
-				currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
-
-			const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
-			// Append because we're going from newest to oldest blocks
-			collected.push(...pageMessages);
-
-			currentFromBlock = pageFromBlock - 1n;
-			if (pageFromBlock === deployBlock) {
-				break;
-			}
-		}
-
-		// Sort collected by timestamp descending (newest first) - already correct but ensure
-		collected.sort((a, b) => b.timestamp - a.timestamp);
-
-		oldestBlockQueried = currentFromBlock;
-		latestBlockQueried = startBlock;
-
-		return {
-			messages: collected,
-			hasMore: oldestBlockQueried > deployBlock,
-		};
-	}
-
 	async function loadInitialStreaming(
 		targetCount = 50,
 		onPage?: (pageMessages: any[]) => void
@@ -278,7 +243,6 @@ export function createMessageLoader() {
 	}
 
 	return {
-		loadInitial,
 		loadInitialStreaming,
 		loadMore,
 		getState: () => ({ oldestBlockQueried, latestBlockQueried }),
@@ -425,13 +389,6 @@ export async function postMessage(message: string) {
 	return hash;
 }
 
-// Fetch past messages (events) - legacy function, uses pagination loader
-export async function fetchMessages(limit = 50) {
-	const loader = createMessageLoader();
-	const { messages } = await loader.loadInitial(limit);
-	return messages.slice(0, limit);
-}
-
 // Subscribe to new messages
 export function watchMessages(callback: (message: any) => void) {
 	return getPublicClient().watchContractEvent({
@@ -458,6 +415,12 @@ export function watchMessages(callback: (message: any) => void) {
 			});
 		},
 	});
+}
+
+// Wait for a transaction to be confirmed then return the message
+export async function waitForMessage(txHash: `0x${string}`) {
+	await getPublicClient().waitForTransactionReceipt({ hash: txHash });
+	return getMessageByTxHash(txHash);
 }
 
 // Get message by transaction hash

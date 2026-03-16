@@ -2,6 +2,7 @@
 	import { ROUTES } from '$lib/types';
 	import Address from './Address.svelte';
 	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
 
 	interface Props {
 		message: {
@@ -22,7 +23,7 @@
 
 	function renderMarkdown(text: string): string {
 		const html = marked.parse(text, { async: false }) as string;
-		return html;
+		return DOMPurify.sanitize(html);
 	}
 </script>
 
@@ -79,5 +80,11 @@
 	.message-text :global(img) {
 		max-width: 100%;
 		height: auto;
+	}
+	.message-text :global(blockquote) {
+		border-left: 3px solid var(--surface-alt);
+		margin: 0.5rem 0;
+		padding: 0.25rem 0.75rem;
+		color: var(--text-secondary);
 	}
 </style>
