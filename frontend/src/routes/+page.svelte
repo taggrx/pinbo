@@ -254,7 +254,7 @@
 	:global(h5),
 	:global(h6) {
 		color: var(--orange);
-		font-family: 'Arial Narrow', Arial, sans-serif;
+		font-family: 'Trebuchet MS', Arial, sans-serif;
 	}
 	.header {
 		display: flex;
