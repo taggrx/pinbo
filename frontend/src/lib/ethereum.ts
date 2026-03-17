@@ -264,6 +264,7 @@ export async function autoConnect() {
 	try {
 		if (typeof window === 'undefined' || !window.ethereum) return;
 		const provider = window.ethereum as EthereumProvider;
+		if (typeof provider.request !== 'function') return;
 
 		// Check if account is still available
 		const accounts = await provider.request({ method: 'eth_accounts' });
@@ -288,9 +289,12 @@ export async function autoConnect() {
 export async function connect() {
 	try {
 		if (typeof window === 'undefined' || !window.ethereum) {
-			throw new Error('MetaMask not installed');
+			throw new Error('No wallet detected');
 		}
 		const provider = window.ethereum as EthereumProvider;
+		if (typeof provider.request !== 'function') {
+			throw new Error('Wallet does not support the required interface');
+		}
 		// Request account access
 		const [address] = await provider.request({ method: 'eth_requestAccounts' });
 		account.set(address);

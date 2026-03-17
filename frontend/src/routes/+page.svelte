@@ -51,7 +51,7 @@
 	let loadingMore = $state(false);
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
-	let postError = $state<string | null>(null);
+	let globalError = $state<string | null>(null);
 	let replyTo = $state<MessageType | null>(null);
 	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
 	const rpcUrl = rpcUrlFull.replace(/^https?:\/\//, '');
@@ -153,7 +153,7 @@
 	async function handlePost() {
 		if (!newMessage.trim() || posting) return;
 		posting = true;
-		postError = null;
+		globalError = null;
 		try {
 			const topics: Array<[number, Uint8Array]> | null = replyTo
 				? [[TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]]
@@ -171,7 +171,7 @@
 			pendingTxHash = null;
 		} catch (err) {
 			const message = (err as Error).message;
-			postError = message.split('\n')[0];
+			globalError = message.split('\n')[0];
 			console.error(message);
 			pendingTxHash = null;
 		} finally {
@@ -202,10 +202,27 @@
 					disabled={showAbout || !!permalinkMessage}>+</button
 				>
 			{:else}
-				<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
+				<button
+					class="btn connect"
+					onclick={async () => {
+						globalError = null;
+						try {
+							await connect();
+						} catch (e) {
+							globalError = (e as Error).message;
+						}
+					}}>CONNECT WALLET</button
+				>
 			{/if}
 		</div>
 	</header>
+
+	{#if globalError}
+		<div class="error-banner" role="alert">
+			{globalError}
+			<button class="error-close" onclick={() => (globalError = null)}>✕</button>
+		</div>
+	{/if}
 
 	<main>
 		{#if $isConnected && !permalinkMessage && !showAbout}
@@ -215,9 +232,6 @@
 				<div class="post-section">
 					<div class="input-group">
 						<TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
-						{#if postError}
-							<div class="post-error">{postError}</div>
-						{/if}
 						<div class="btn-row">
 							{#if replyTo}
 								<button
@@ -394,9 +408,24 @@
 	.btn.post-btn {
 		background-color: var(--secondary);
 	}
-	.post-error {
+	.error-banner {
+		background: var(--bg-red);
 		color: var(--error);
+		padding: 0.75rem 1rem;
+		border-radius: 0.375rem;
+		margin-bottom: 1rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
 		font-size: 0.875rem;
+	}
+	.error-close {
+		background: none;
+		border: none;
+		color: var(--error);
+		cursor: pointer;
+		font-size: 0.875rem;
+		padding: 0 0.25rem;
 	}
 	.post-section {
 		margin-bottom: 2rem;
