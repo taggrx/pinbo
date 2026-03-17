@@ -129,8 +129,6 @@
 		margin-top: 0.75rem;
 		max-height: 15vh;
 		overflow-y: auto;
-		border-left: 2px solid var(--surface-alt);
-		padding-left: 0.5rem;
 		opacity: 0.8;
 	}
 	.repost-loading,
