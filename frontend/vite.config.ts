@@ -2,12 +2,12 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { execSync } from 'child_process';
 
-const commitHash = execSync('git rev-parse --short=8 HEAD').toString().trim();
+const gitTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo "untagged"').toString().trim();
 
 export default defineConfig({
 	plugins: [sveltekit()],
 	define: {
-		__COMMIT_HASH__: JSON.stringify(commitHash),
+		__GIT_TAG__: JSON.stringify(gitTag),
 	},
 	build: {
 		chunkSizeWarningLimit: 5000,

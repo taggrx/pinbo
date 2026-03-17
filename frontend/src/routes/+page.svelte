@@ -309,7 +309,7 @@
 		>
 		&middot;
 		<a href="https://github.com/taggrx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
-		&middot; {__COMMIT_HASH__}
+		&middot; {__GIT_TAG__}
 	</footer>
 </div>
 

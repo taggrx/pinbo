@@ -1,6 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
-declare const __COMMIT_HASH__: string;
+declare const __GIT_TAG__: string;
 
 declare global {
 	namespace App {
