@@ -286,7 +286,7 @@
 					<div class="messages-list">
 						{#each messages as message (message.blockNumber)}
 							<div transition:fade>
-								<Message {message} onReply={handleReply} />
+								<Message {message} onReply={$isConnected ? handleReply : undefined} />
 							</div>
 						{/each}
 					</div>
