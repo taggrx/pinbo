@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Pinbo</title>
+  <g transform="rotate(35, 64, 64)" fill="#a7c080">
+    <!-- Disc head -->
+    <circle cx="64" cy="24" r="22"/>
+    <!-- Shaft tapering to tip -->
+    <path d="M61,44 h6 v60 Q67,116 64,119 Q61,116 61,104 Z"/>
+  </g>
+</svg>

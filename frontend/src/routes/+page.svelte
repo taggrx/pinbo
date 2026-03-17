@@ -182,7 +182,12 @@
 
 <div class="container">
 	<header class="header">
-		<h1 class="logo"><button onclick={() => (window.location.hash = '')}>PINBO</button></h1>
+		<h1 class="logo">
+			<button onclick={() => (window.location.hash = '')}>
+				<img src="favicon.svg" width="26" height="26" alt="" aria-hidden="true" />
+				PINBO
+			</button>
+		</h1>
 		<div class="wallet-section">
 			<a href={ROUTES.ABOUT} class="about-link">About</a>
 			{#if $isConnected}
@@ -326,6 +331,9 @@
 		font-family: system-ui, sans-serif;
 	}
 	.logo button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
 		color: inherit;
 		background: none;
 		border: none;
