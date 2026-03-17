@@ -354,12 +354,7 @@
 	.about-link:hover {
 		color: var(--primary);
 	}
-	.middot {
-		color: var(--text-secondary);
-		margin: 0 0.1rem;
-	}
 	.post-btn {
-		background-color: var(--secondary);
 		margin-left: 0.5rem;
 	}
 	.post-fab {
@@ -482,7 +477,7 @@
 		text-align: center;
 		margin-top: 2rem;
 		font-size: 0.75rem;
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 		color: var(--text-secondary);
 		word-break: break-all;
 	}

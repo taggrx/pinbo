@@ -80,9 +80,7 @@
 
 <style>
 	.message {
-		padding: 1rem;
 		border: 1px solid var(--surface-alt);
-		border-radius: 0.5rem;
 	}
 	.message-header {
 		display: flex;
@@ -96,13 +94,9 @@
 		align-items: center;
 		flex-shrink: 0;
 	}
-	.middot {
-		color: var(--text-secondary);
-		margin: 0 0.25rem;
-	}
 	.timestamp {
 		color: var(--text-secondary);
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 	}
 	.message-actions {
 		display: flex;
@@ -112,7 +106,7 @@
 	}
 	.permalink {
 		font-size: 1rem;
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 	}
 	.reply-btn {
 		background: none;
@@ -121,7 +115,7 @@
 		cursor: pointer;
 		font-size: 1.2rem;
 		color: var(--primary);
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 	}
 	.reply-btn:hover {
 		text-decoration: underline;
@@ -130,16 +124,6 @@
 	.message-text {
 		margin: 0;
 		line-height: 1.5;
-	}
-	.message-text :global(img) {
-		max-width: 100%;
-		height: auto;
-	}
-	.message-text :global(blockquote) {
-		border-left: 3px solid var(--surface-alt);
-		margin: 0.5rem 0;
-		padding: 0.25rem 0.75rem;
-		color: var(--text-secondary);
 	}
 	.repost {
 		margin-top: 0.75rem;
@@ -153,6 +137,6 @@
 	.repost-error {
 		font-size: 0.75rem;
 		color: var(--text-secondary);
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 	}
 </style>

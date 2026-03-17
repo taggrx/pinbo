@@ -56,12 +56,12 @@
 		gap: 0.4rem;
 		color: var(--primary);
 		text-decoration: none;
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 	}
 	.blockie {
 		width: 24px;
 		height: 24px;
-		border-radius: 4px;
+		border-radius: 0.25rem;
 		flex-shrink: 0;
 	}
 	.address-link:hover {
