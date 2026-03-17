@@ -77,7 +77,7 @@
 			showAbout = true;
 		} else {
 			showAbout = false;
-			const match = hash.match(/^#\/message\/(0x[a-fA-F0-9]{64})$/);
+			const match = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
 			if (match) {
 				permalinkMessage = null;
 				permalinkLoading = true;
