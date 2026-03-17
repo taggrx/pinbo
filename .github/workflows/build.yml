@@ -27,11 +27,12 @@ jobs:
         run: npm run build
         working-directory: frontend
         env:
-          VITE_LOCAL_RPC_URL: ${{ vars.VITE_LOCAL_RPC_URL }}
-          VITE_PINBO_CONTRACT_ADDRESS: ${{ vars.VITE_PINBO_CONTRACT_ADDRESS }}
-          VITE_CONTRACT_DEPLOY_BLOCK: ${{ vars.VITE_CONTRACT_DEPLOY_BLOCK }}
-          VITE_ENS_RPC: ${{ vars.VITE_ENS_RPC }}
-          VITE_WALLETCONNECT_PROJECT_ID: ${{ vars.VITE_WALLETCONNECT_PROJECT_ID }}
+          GIT_TAG: ${{ github.ref_name }}
+          VITE_PINBO_CONTRACT_ADDRESS: "0xd142B29992Da1CEfB429e303500A90Bbe3e01118"
+          VITE_CONTRACT_DEPLOY_BLOCK: "24664869"
+          VITE_CHAIN_ID: "1"
+          VITE_RPC_URL: "https://ethereum-rpc.publicnode.com"
+          VITE_ENS_RPC: "https://1.rpc.thirdweb.com"
 
       - name: Archive build
         run: tar -czf pinbo-${{ github.event.inputs.tag || github.ref_name }}.tar.gz -C frontend/build .

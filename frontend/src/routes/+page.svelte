@@ -63,7 +63,7 @@
 	let profileLoading = $state(false);
 	let fee = $state<bigint | null>(null);
 
-	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
+	const rpcUrlFull = import.meta.env.VITE_RPC_URL;
 
 	$effect(() => {
 		if (showPostForm) {

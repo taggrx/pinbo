@@ -186,7 +186,7 @@ fi
 FRONTEND_ENV="frontend/.env"
 if [ -f "$FRONTEND_ENV" ]; then
     sed -i "s|VITE_PINBO_CONTRACT_ADDRESS=.*|VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" "$FRONTEND_ENV"
-    sed -i "s|VITE_LOCAL_RPC_URL=.*|VITE_LOCAL_RPC_URL=$RPC_URL|" "$FRONTEND_ENV"
+    sed -i "s|VITE_RPC_URL=.*|VITE_RPC_URL=$RPC_URL|" "$FRONTEND_ENV"
     # Add or update chain ID
     if grep -q "VITE_CHAIN_ID=" "$FRONTEND_ENV"; then
         sed -i "s|VITE_CHAIN_ID=.*|VITE_CHAIN_ID=$CHAIN_ID|" "$FRONTEND_ENV"
@@ -202,7 +202,7 @@ if [ -f "$FRONTEND_ENV" ]; then
     echo "Updated $FRONTEND_ENV"
 else
     echo "VITE_PINBO_CONTRACT_ADDRESS=$CONTRACT_ADDRESS" > "$FRONTEND_ENV"
-    echo "VITE_LOCAL_RPC_URL=$RPC_URL" >> "$FRONTEND_ENV"
+    echo "VITE_RPC_URL=$RPC_URL" >> "$FRONTEND_ENV"
     echo "VITE_CHAIN_ID=$CHAIN_ID" >> "$FRONTEND_ENV"
     echo "VITE_CONTRACT_DEPLOY_BLOCK=$DEPLOY_BLOCK" >> "$FRONTEND_ENV"
     echo "Created $FRONTEND_ENV"
@@ -216,5 +216,5 @@ echo "Chain ID: $CHAIN_ID"
 echo ""
 echo "Next steps:"
 echo "1. Update your wallet to connect to chain ID $CHAIN_ID"
-echo "2. Use the frontend with VITE_LOCAL_RPC_URL=$RPC_URL"
+echo "2. Use the frontend with VITE_RPC_URL=$RPC_URL"
 echo "3. Test posting a message with: ./scripts/post_message.sh \"Hello world\""

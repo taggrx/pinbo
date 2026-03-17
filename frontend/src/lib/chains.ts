@@ -2,7 +2,7 @@ import { defineChain } from 'viem';
 
 // Get chain configuration from environment
 const CHAIN_ID = import.meta.env.VITE_CHAIN_ID ? parseInt(import.meta.env.VITE_CHAIN_ID) : 31337;
-const RPC_URL = import.meta.env.VITE_LOCAL_RPC_URL;
+const RPC_URL = import.meta.env.VITE_RPC_URL;
 
 export const pinboChain = defineChain({
 	id: CHAIN_ID,

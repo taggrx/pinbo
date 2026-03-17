@@ -40,7 +40,7 @@ npm run dev
 ## Environment Variables
 
 - `VITE_PINBO_CONTRACT_ADDRESS`: Ethereum address of the deployed Pinbo contract
-- `VITE_LOCAL_RPC_URL`: RPC URL of the local Ethereum node (default: http://localhost:8545)
+- `VITE_RPC_URL`: RPC URL of the local Ethereum node (default: http://localhost:8545)
 - `VITE_WALLETCONNECT_PROJECT_ID`: Optional WalletConnect project ID (if using WalletConnect)
 
 ## Development

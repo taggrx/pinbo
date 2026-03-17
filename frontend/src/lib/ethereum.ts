@@ -87,7 +87,7 @@ export async function resolveEns(address: `0x${string}`): Promise<string | null>
 function getPublicClient() {
 	return createPublicClient({
 		chain: pinboChain,
-		transport: http(import.meta.env.VITE_LOCAL_RPC_URL),
+		transport: http(import.meta.env.VITE_RPC_URL),
 	});
 }
 
