@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolveEns } from '$lib/ethereum';
+	import { create as makeBlockie } from 'blockies-ts';
 
 	interface Props {
 		address: string;
@@ -33,9 +34,14 @@
 	function getEtherscanLink() {
 		return `https://etherscan.io/address/${address}`;
 	}
+
+	function getBlockie() {
+		return makeBlockie({ seed: address.toLowerCase(), size: 8, scale: 3 }).toDataURL();
+	}
 </script>
 
 <a href={getEtherscanLink()} class="address-link" target="_blank" rel="noopener noreferrer">
+	<img src={getBlockie()} alt="" class="blockie" />
 	{#if loading}
 		<span class="loading">0x{address.slice(2, 6)}</span>
 	{:else}
@@ -45,9 +51,18 @@
 
 <style>
 	.address-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
 		color: var(--primary);
 		text-decoration: none;
 		font-family: monospace;
+	}
+	.blockie {
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+		flex-shrink: 0;
 	}
 	.address-link:hover {
 		text-decoration: underline;

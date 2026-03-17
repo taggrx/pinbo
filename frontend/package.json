@@ -29,6 +29,7 @@
 	"dependencies": {
 		"@toast-ui/editor": "^3.2.2",
 		"@wagmi/connectors": "^7.2.1",
+		"blockies-ts": "^1.0.0",
 		"dompurify": "^3.3.3",
 		"marked": "^17.0.4",
 		"pako": "^2.1.0",

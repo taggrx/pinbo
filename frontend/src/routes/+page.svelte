@@ -158,7 +158,7 @@
 
 <div class="container">
 	<header class="header">
-		<h1 class="logo"><button onclick={() => (window.location.hash = '')}>PINBO.eth</button></h1>
+		<h1 class="logo"><button onclick={() => (window.location.hash = '')}>PINBO</button></h1>
 		<div class="wallet-section">
 			<a href={ROUTES.ABOUT} class="about-link">About</a>
 			{#if $isConnected}
@@ -272,7 +272,7 @@
 		margin-bottom: 2rem;
 	}
 	.logo {
-		font-size: 1rem;
+		font-size: 1.4rem;
 		font-weight: 800;
 		color: var(--orange);
 		margin: 0;
