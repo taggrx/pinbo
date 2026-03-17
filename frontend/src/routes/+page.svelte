@@ -204,7 +204,8 @@
 				<button
 					class="btn post-fab"
 					onclick={togglePostForm}
-					disabled={showAbout || !!permalinkMessage}>+</button
+					disabled={showAbout || !!permalinkMessage}
+					style:display={showPostForm ? 'none' : ''}>+</button
 				>
 			{:else}
 				<button
@@ -238,15 +239,13 @@
 					<div class="input-group">
 						<TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
 						<div class="btn-row">
-							{#if replyTo}
-								<button
-									class="btn btn-secondary"
-									onclick={() => {
-										replyTo = null;
-										showPostForm = false;
-									}}>CLOSE</button
-								>
-							{/if}
+							<button
+								class="btn btn-secondary"
+								onclick={() => {
+									replyTo = null;
+									showPostForm = false;
+								}}>CLOSE</button
+							>
 							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
 								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
 							</button>
@@ -410,6 +409,7 @@
 	.btn.connect,
 	.btn.post-btn {
 		background-color: var(--secondary);
+		margin-left: 1rem;
 	}
 	.error-banner {
 		background: var(--bg-red);
