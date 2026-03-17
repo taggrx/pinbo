@@ -12,7 +12,9 @@
 		watchMessages,
 		getMessageByTxHash,
 		createMessageLoader,
+		TOPIC_TYPE,
 	} from '$lib/ethereum';
+	import { hexToBytes } from 'viem';
 	import { fade } from 'svelte/transition';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
@@ -50,13 +52,21 @@
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
 	let postError = $state<string | null>(null);
+	let replyTo = $state<MessageType | null>(null);
 	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
 	const rpcUrl = rpcUrlFull.replace(/^https?:\/\//, '');
+
+	function handleReply(message: MessageType) {
+		replyTo = message;
+		showPostForm = true;
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
 
 	async function handleHashChange() {
 		if (!browser) return;
 		const hash = window.location.hash;
 		showPostForm = false;
+		replyTo = null;
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
@@ -135,9 +145,13 @@
 		posting = true;
 		postError = null;
 		try {
-			const txHash = await postMessage(newMessage.trim());
+			const topics: Array<[number, Uint8Array]> | null = replyTo
+			? [[TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]]
+			: null;
+		const txHash = await postMessage(newMessage.trim(), topics);
 			pendingTxHash = txHash;
 			newMessage = '';
+			replyTo = null;
 			localStorage.removeItem(DRAFT_KEY);
 			showPostForm = false;
 			const message = await waitForMessage(txHash);
@@ -168,13 +182,13 @@
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
 					<button
 						class="btn post-btn"
-						onclick={() => (showPostForm = !showPostForm)}
+						onclick={() => { showPostForm = !showPostForm; if (!showPostForm) replyTo = null; }}
 						disabled={showAbout || !!permalinkMessage}>POST</button
 					>
 				</div>
 				<button
 					class="btn post-fab"
-					onclick={() => (showPostForm = !showPostForm)}
+					onclick={() => { showPostForm = !showPostForm; if (!showPostForm) replyTo = null; }}
 					disabled={showAbout || !!permalinkMessage}>+</button
 				>
 			{:else}
@@ -194,10 +208,20 @@
 						{#if postError}
 							<div class="post-error">{postError}</div>
 						{/if}
-						<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
-							{posting ? 'SENDING' : 'SEND'}
-						</button>
+						<div class="btn-row">
+							{#if replyTo}
+								<button class="btn btn-secondary" onclick={() => { replyTo = null; showPostForm = false; }}>CLOSE</button>
+							{/if}
+							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
+								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
+							</button>
+						</div>
 					</div>
+					{#if replyTo}
+						<div class="reply-to">
+							<Message message={replyTo} showPermalink={false} showReply={false} />
+						</div>
+					{/if}
 				</div>
 			{/if}
 		{/if}
@@ -215,7 +239,7 @@
 					rel="noopener noreferrer">{permalinkMessage.txHash}</a
 				>
 			</div>
-		{:else}
+		{:else if !replyTo}
 			<div class="messages-section">
 				{#if loading}
 					<div class="loading">LOADING...</div>
@@ -225,7 +249,7 @@
 					<div class="messages-list">
 						{#each messages as message (message.blockNumber)}
 							<div transition:fade>
-								<Message {message} />
+								<Message {message} onReply={handleReply} />
 							</div>
 						{/each}
 					</div>
@@ -372,6 +396,24 @@
 	.post-section {
 		margin-bottom: 2rem;
 		padding: 1rem 0;
+	}
+	.reply-to {
+		margin-top: 1rem;
+	}
+	.btn-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.btn-row .btn {
+		flex: 1;
+	}
+	.btn-secondary {
+		background: var(--bg-dim);
+		border: 1px solid var(--bg-dim);
+		color: var(--text-secondary);
+	}
+	.btn-secondary:hover {
+		border-color: var(--text-secondary);
 	}
 	.input-group {
 		display: flex;

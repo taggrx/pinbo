@@ -3,6 +3,8 @@
 	import Address from './Address.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
+	import { getMessageByTxHash, TOPIC_TYPE } from '$lib/ethereum';
+	import { bytesToHex } from 'viem';
 
 	interface Props {
 		message: {
@@ -11,11 +13,18 @@
 			timestamp?: number;
 			blockNumber: bigint;
 			txHash: string;
+			topics?: Array<[number, Uint8Array]> | null;
 		};
 		showPermalink?: boolean;
+		showReply?: boolean;
+		onReply?: (message: Props['message']) => void;
 	}
 
-	let { message, showPermalink = true }: Props = $props();
+	let { message, showPermalink = true, showReply = true, onReply }: Props = $props();
+
+	const reposts = $derived(
+		(message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST)
+	);
 
 	function formatTime(timestamp: number) {
 		const now = Date.now();
@@ -37,6 +46,11 @@
 		const html = marked.parse(text, { async: false }) as string;
 		return DOMPurify.sanitize(html);
 	}
+
+	async function fetchRepost(bytes: Uint8Array) {
+		const txHash = bytesToHex(bytes) as `0x${string}`;
+		return getMessageByTxHash(txHash);
+	}
 </script>
 
 <div class="message card">
@@ -52,11 +66,28 @@
 					: 'BLOCK ' + message.blockNumber}</span
 			>
 		</span>
-		{#if showPermalink}
-			<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
-		{/if}
+		<span class="message-actions">
+			{#if showReply && onReply}
+				<button class="reply-btn" onclick={() => onReply(message)} title="Reply">↩</button>
+			{/if}
+			{#if showPermalink}
+				{#if showReply && onReply}<span class="middot">·</span>{/if}
+				<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
+			{/if}
+		</span>
 	</div>
 	<div class="message-text">{@html renderMarkdown(message.message)}</div>
+	{#each reposts as [, bytes]}
+		<div class="repost">
+			{#await fetchRepost(bytes)}
+				<div class="repost-loading">loading repost…</div>
+			{:then reposted}
+				<svelte:self message={reposted} showPermalink={false} showReply={false} />
+			{:catch}
+				<div class="repost-error">repost not found</div>
+			{/await}
+		</div>
+	{/each}
 </div>
 
 <style>
@@ -85,9 +116,28 @@
 		color: var(--text-secondary);
 		font-family: monospace;
 	}
+	.message-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		flex-shrink: 0;
+	}
 	.permalink {
-		font-size: 0.75rem;
+		font-size: 1rem;
 		font-family: monospace;
+	}
+	.reply-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-size: 1.2rem;
+		color: var(--primary);
+		font-family: monospace;
+	}
+	.reply-btn:hover {
+		text-decoration: underline;
+		text-decoration-style: dotted;
 	}
 	.message-text {
 		margin: 0;
@@ -102,5 +152,19 @@
 		margin: 0.5rem 0;
 		padding: 0.25rem 0.75rem;
 		color: var(--text-secondary);
+	}
+	.repost {
+		margin-top: 0.75rem;
+		max-height: 15vh;
+		overflow-y: auto;
+		border-left: 2px solid var(--surface-alt);
+		padding-left: 0.5rem;
+		opacity: 0.8;
+	}
+	.repost-loading,
+	.repost-error {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		font-family: monospace;
 	}
 </style>

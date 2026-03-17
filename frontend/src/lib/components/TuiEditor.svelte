@@ -32,11 +32,12 @@
 		});
 
 		if (value) {
-			editor.setHTML(value);
+			editor.setMarkdown(value);
 		}
 
 		editor.on('change', () => {
-			value = editor.getHTML();
+			const md = editor.getMarkdown();
+			value = md.trim() ? md : '';
 		});
 
 		editor.on('changeMode', (mode: string) => {

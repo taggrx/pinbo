@@ -28,7 +28,7 @@ function encodeMessage(text: string, topics: Topics = null): Uint8Array {
 	const textBytes = new TextEncoder().encode(text);
 	const compressed = pako.deflate(textBytes, { level: 9 });
 	const messageBytes = compressed.length < textBytes.length ? compressed : textBytes;
-	const packed = msgpackEncode({ message: messageBytes, topics });
+	const packed = msgpackEncode(topics ? { message: messageBytes, topics } : { message: messageBytes });
 	const result = new Uint8Array(1 + packed.length);
 	result[0] = VERSION_BYTE;
 	result.set(packed, 1);
@@ -447,7 +447,7 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 	});
 
 	const data = hexToBytes(decoded.args.message as `0x${string}`);
-	const { message, topic } = decodeMessage(data);
+	const { message, topics } = decodeMessage(data);
 
 	return {
 		sender: decoded.args.sender as `0x${string}`,
