@@ -4,6 +4,7 @@ export interface Message {
 	timestamp: number;
 	blockNumber: bigint;
 	txHash: `0x${string}`;
+	topics?: Array<[number, Uint8Array]> | null;
 }
 
 export const ROUTES = {

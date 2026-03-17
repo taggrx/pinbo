@@ -13,6 +13,48 @@ import { mainnet } from 'viem/chains';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import pako from 'pako';
+import { encode as msgpackEncode, decode as msgpackDecode } from '@msgpack/msgpack';
+
+const VERSION_BYTE = 0x01;
+
+export const TOPIC_TYPE = {
+	REPOST: 0,
+	ADDRESS: 1,
+} as const;
+
+type Topics = Array<[number, Uint8Array]> | null;
+
+function encodeMessage(text: string, topics: Topics = null): Uint8Array {
+	const textBytes = new TextEncoder().encode(text);
+	const compressed = pako.deflate(textBytes, { level: 9 });
+	const messageBytes = compressed.length < textBytes.length ? compressed : textBytes;
+	const packed = msgpackEncode({ message: messageBytes, topics });
+	const result = new Uint8Array(1 + packed.length);
+	result[0] = VERSION_BYTE;
+	result.set(packed, 1);
+	return result;
+}
+
+function decodeMessage(data: Uint8Array): { message: string; topics: Topics } {
+	if (data[0] === VERSION_BYTE) {
+		const unpacked = msgpackDecode(data.slice(1)) as { message: Uint8Array; topics: Topics };
+		let text: string;
+		try {
+			text = pako.inflate(unpacked.message, { to: 'string' });
+		} catch {
+			text = new TextDecoder().decode(unpacked.message);
+		}
+		return { message: text, topics: unpacked.topics ?? null };
+	}
+	// Legacy: plain bytes or pako-compressed text
+	let text: string;
+	try {
+		text = pako.inflate(data, { to: 'string' });
+	} catch {
+		text = new TextDecoder().decode(data);
+	}
+	return { message: text, topics: null };
+}
 
 // Types
 type EthereumProvider = any; // TODO: better type
@@ -114,28 +156,13 @@ async function fetchLogsInRange(fromBlock: bigint, toBlock: bigint): Promise<any
 		console.log('[Paging] getLogs: got', logs.length, 'logs');
 		// Transform logs (decompress)
 		const messages = logs.map((log) => {
-			const messageHex = log.args.message as `0x${string}`;
-			const data = hexToBytes(messageHex);
-			const storedSize = data.length;
-			let decompressed: string;
-			try {
-				decompressed = pako.inflate(data, { to: 'string' });
-			} catch {
-				decompressed = new TextDecoder().decode(data);
-			}
-			const decompressedSize = new TextEncoder().encode(decompressed).length;
-			if (storedSize < decompressedSize) {
-				const ratio = ((1 - storedSize / decompressedSize) * 100).toFixed(1);
-				console.log(
-					`[Compression] decompressed ${decompressedSize}B -> ${storedSize}B stored (${ratio}% reduction)`
-				);
-			} else {
-				console.log(`[Compression] stored uncompressed`);
-			}
+			const data = hexToBytes(log.args.message as `0x${string}`);
+			const { message, topics } = decodeMessage(data);
 			return {
 				sender: log.args.sender as `0x${string}`,
-				message: decompressed,
-				timestamp: Number(log.args.timestamp) * 1000, // convert to ms
+				message,
+				topics,
+				timestamp: Number(log.args.timestamp) * 1000,
 				blockNumber: log.blockNumber,
 				txHash: log.transactionHash,
 			};
@@ -332,8 +359,8 @@ export function disconnect() {
 	localStorage.removeItem(STORAGE_KEY);
 }
 
-// Post a message (compress with max compression, fallback to plain bytes if larger)
-export async function postMessage(message: string) {
+// Post a message
+export async function postMessage(message: string, topics: Topics = null) {
 	if (!walletClient) {
 		throw new Error('Not connected');
 	}
@@ -345,25 +372,7 @@ export async function postMessage(message: string) {
 	// Get current fee
 	const fee = await getFee();
 
-	const originalBytes = new TextEncoder().encode(message);
-	const compressed = pako.deflate(message, { level: 9 });
-
-	const originalSize = originalBytes.length;
-	const compressedSize = compressed.length;
-	if (compressedSize < originalSize) {
-		const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
-		console.log(`[Compression] ${originalSize}B -> ${compressedSize}B (${ratio}% reduction)`);
-	} else {
-		console.log(`[Compression] skipped (no improvement)`);
-	}
-
-	let dataToStore: Uint8Array;
-	if (compressedSize < originalSize) {
-		dataToStore = compressed;
-	} else {
-		dataToStore = originalBytes;
-	}
-
+	const dataToStore = encodeMessage(message, topics);
 	const dataHex = bytesToHex(dataToStore);
 
 	// Estimate gas using public client
@@ -397,17 +406,12 @@ export function watchMessages(callback: (message: any) => void) {
 		eventName: 'MessagePosted',
 		onLogs: (logs) => {
 			logs.forEach((log) => {
-				const messageHex = log.args.message as `0x${string}`;
-				const data = hexToBytes(messageHex);
-				let decompressed: string;
-				try {
-					decompressed = pako.inflate(data, { to: 'string' });
-				} catch {
-					decompressed = new TextDecoder().decode(data);
-				}
+				const data = hexToBytes(log.args.message as `0x${string}`);
+				const { message, topics } = decodeMessage(data);
 				callback({
 					sender: log.args.sender,
-					message: decompressed,
+					message,
+					topics,
 					timestamp: Number(log.args.timestamp) * 1000,
 					blockNumber: log.blockNumber,
 					txHash: log.transactionHash,
@@ -442,20 +446,13 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 		topics: log.topics,
 	});
 
-	const messageBytes = decoded.args.message as `0x${string}`;
-	const data = hexToBytes(messageBytes);
-
-	// Try decompression first, fallback to plain bytes
-	let decompressed: string;
-	try {
-		decompressed = pako.inflate(data, { to: 'string' });
-	} catch {
-		decompressed = new TextDecoder().decode(data);
-	}
+	const data = hexToBytes(decoded.args.message as `0x${string}`);
+	const { message, topic } = decodeMessage(data);
 
 	return {
 		sender: decoded.args.sender as `0x${string}`,
-		message: decompressed,
+		message,
+		topics,
 		timestamp,
 		blockNumber: log.blockNumber,
 		txHash: log.transactionHash,
