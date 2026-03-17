@@ -16,8 +16,7 @@
 	} from '$lib/ethereum';
 	import { hexToBytes } from 'viem';
 	import { fade } from 'svelte/transition';
-	import { marked } from 'marked';
-	import DOMPurify from 'dompurify';
+	import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
 	import TuiEditor from '$lib/components/TuiEditor.svelte';
@@ -27,7 +26,7 @@
 	let aboutContent = $state('');
 
 	if (browser) {
-		aboutContent = DOMPurify.sanitize(marked.parse(readme, { async: false }) as string);
+		aboutContent = renderMarkdown(readme);
 	}
 
 	let messages = $state<MessageType[]>([]);
@@ -46,6 +45,7 @@
 	let loading = $state(true);
 	let unwatch: (() => void) | null = null;
 	let permalinkMessage = $state<MessageType | null>(null);
+	let permalinkLoading = $state(false);
 	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
 	let hasMore = $state(false);
 	let loadingMore = $state(false);
@@ -55,6 +55,11 @@
 	let replyTo = $state<MessageType | null>(null);
 	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
 	const rpcUrl = rpcUrlFull.replace(/^https?:\/\//, '');
+
+	function togglePostForm() {
+		showPostForm = !showPostForm;
+		if (!showPostForm) replyTo = null;
+	}
 
 	function handleReply(message: MessageType) {
 		replyTo = message;
@@ -74,13 +79,18 @@
 			showAbout = false;
 			const match = hash.match(/^#\/message\/(0x[a-fA-F0-9]{64})$/);
 			if (match) {
+				permalinkMessage = null;
+				permalinkLoading = true;
 				try {
 					permalinkMessage = await getMessageByTxHash(match[1] as `0x${string}`);
 				} catch (e) {
 					permalinkMessage = null;
+				} finally {
+					permalinkLoading = false;
 				}
 			} else {
 				permalinkMessage = null;
+				permalinkLoading = false;
 			}
 		}
 	}
@@ -146,9 +156,9 @@
 		postError = null;
 		try {
 			const topics: Array<[number, Uint8Array]> | null = replyTo
-			? [[TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]]
-			: null;
-		const txHash = await postMessage(newMessage.trim(), topics);
+				? [[TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]]
+				: null;
+			const txHash = await postMessage(newMessage.trim(), topics);
 			pendingTxHash = txHash;
 			newMessage = '';
 			replyTo = null;
@@ -182,13 +192,13 @@
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
 					<button
 						class="btn post-btn"
-						onclick={() => { showPostForm = !showPostForm; if (!showPostForm) replyTo = null; }}
+						onclick={togglePostForm}
 						disabled={showAbout || !!permalinkMessage}>POST</button
 					>
 				</div>
 				<button
 					class="btn post-fab"
-					onclick={() => { showPostForm = !showPostForm; if (!showPostForm) replyTo = null; }}
+					onclick={togglePostForm}
 					disabled={showAbout || !!permalinkMessage}>+</button
 				>
 			{:else}
@@ -210,7 +220,13 @@
 						{/if}
 						<div class="btn-row">
 							{#if replyTo}
-								<button class="btn btn-secondary" onclick={() => { replyTo = null; showPostForm = false; }}>CLOSE</button>
+								<button
+									class="btn btn-secondary"
+									onclick={() => {
+										replyTo = null;
+										showPostForm = false;
+									}}>CLOSE</button
+								>
 							{/if}
 							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
 								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
@@ -230,6 +246,8 @@
 			<div class="about-section">
 				{@html aboutContent}
 			</div>
+		{:else if permalinkLoading}
+			<div class="loading">LOADING...</div>
 		{:else if permalinkMessage}
 			<Message message={permalinkMessage} showPermalink={false} />
 			<div class="permalink-tx">
@@ -278,19 +296,6 @@
 </div>
 
 <style>
-	:global(body) {
-		font-family: Arial, sans-serif;
-		font-size: 1.05rem;
-	}
-	:global(h1),
-	:global(h2),
-	:global(h3),
-	:global(h4),
-	:global(h5),
-	:global(h6) {
-		color: var(--orange);
-		font-family: 'Trebuchet MS', Arial, sans-serif;
-	}
 	.header {
 		display: flex;
 		justify-content: space-between;
@@ -304,7 +309,7 @@
 		font-weight: 800;
 		color: var(--orange);
 		margin: 0;
-		font-family: 'Arial Narrow', sans-serif;
+		font-family: system-ui, sans-serif;
 	}
 	.logo button {
 		color: inherit;
@@ -448,7 +453,7 @@
 		text-align: center;
 		margin-top: 2rem;
 		font-size: 0.75rem;
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 		color: var(--text-secondary);
 		word-break: break-all;
 	}

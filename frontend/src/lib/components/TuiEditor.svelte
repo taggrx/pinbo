@@ -59,7 +59,7 @@
 	:global(.toastui-editor-defaultUI),
 	:global(.toastui-editor-defaultUI *),
 	:global(.ProseMirror) {
-		font-family: Arial, sans-serif !important;
+		font-family: system-ui, sans-serif !important;
 		font-size: 1rem !important;
 	}
 

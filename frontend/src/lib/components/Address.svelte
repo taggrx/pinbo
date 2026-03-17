@@ -56,7 +56,7 @@
 		gap: 0.4rem;
 		color: var(--primary);
 		text-decoration: none;
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 	}
 	.blockie {
 		width: 24px;

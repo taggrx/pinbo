@@ -12,6 +12,7 @@ import {
 import { mainnet } from 'viem/chains';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
+import type { Message } from './types';
 import pako from 'pako';
 import { encode as msgpackEncode, decode as msgpackDecode } from '@msgpack/msgpack';
 
@@ -28,7 +29,9 @@ function encodeMessage(text: string, topics: Topics = null): Uint8Array {
 	const textBytes = new TextEncoder().encode(text);
 	const compressed = pako.deflate(textBytes, { level: 9 });
 	const messageBytes = compressed.length < textBytes.length ? compressed : textBytes;
-	const packed = msgpackEncode(topics ? { message: messageBytes, topics } : { message: messageBytes });
+	const packed = msgpackEncode(
+		topics ? { message: messageBytes, topics } : { message: messageBytes }
+	);
 	const result = new Uint8Array(1 + packed.length);
 	result[0] = VERSION_BYTE;
 	result.set(packed, 1);
@@ -181,92 +184,54 @@ export function createMessageLoader() {
 	let oldestBlockQueried: bigint | null = null;
 	let latestBlockQueried: bigint | null = null;
 
-	async function loadInitialStreaming(
-		targetCount = 50,
-		onPage?: (pageMessages: any[]) => void
-	): Promise<{ messages: any[]; hasMore: boolean }> {
-		console.log('[Paging] loadInitialStreaming: starting');
-		const latestBlock = await getLatestMessageBlock();
-		console.log('[Paging] latestMessageBlock:', latestBlock);
-		const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
-		console.log('[Paging] startBlock:', startBlock);
+	async function fetchPages(
+		startBlock: bigint,
+		targetCount: number,
+		onPage?: (pageMessages: Message[]) => void
+	): Promise<{ messages: Message[]; nextBlock: bigint }> {
 		const deployBlock = CONTRACT_DEPLOY_BLOCK;
-		console.log('[Paging] deployBlock:', deployBlock);
-
 		let currentFromBlock = startBlock;
-		const collected: any[] = [];
+		const collected: Message[] = [];
 
 		while (collected.length < targetCount && currentFromBlock > deployBlock) {
-			console.log('[Paging] fetching from', currentFromBlock - PAGE_SIZE, 'to', currentFromBlock);
 			const pageToBlock = currentFromBlock;
 			const pageFromBlock =
 				currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
 
 			const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
-			console.log('[Paging] got', pageMessages.length, 'messages in this page');
-			// Append because we're going from newest to oldest blocks
 			collected.push(...pageMessages);
-			if (onPage) {
-				// Call onPage with messages sorted newest first (they already are)
-				onPage([...pageMessages]);
-			}
+			onPage?.([...pageMessages]);
 
 			currentFromBlock = pageFromBlock - 1n;
-			console.log('[Paging] total collected:', collected.length);
-			if (pageFromBlock === deployBlock) {
-				break;
-			}
+			if (pageFromBlock === deployBlock) break;
 		}
 
-		// Sort collected by timestamp descending (newest first)
 		collected.sort((a, b) => b.timestamp - a.timestamp);
-
-		oldestBlockQueried = currentFromBlock;
-		latestBlockQueried = startBlock;
-		console.log('[Paging] done. hasMore:', oldestBlockQueried > deployBlock);
-
-		return {
-			messages: collected,
-			hasMore: oldestBlockQueried > deployBlock,
-		};
+		return { messages: collected, nextBlock: currentFromBlock };
 	}
 
-	async function loadMore(targetCount = 50): Promise<{ messages: any[]; hasMore: boolean }> {
-		if (!oldestBlockQueried) {
-			throw new Error('Must call loadInitial first');
-		}
-		const deployBlock = CONTRACT_DEPLOY_BLOCK;
-		if (oldestBlockQueried <= deployBlock) {
-			return { messages: [], hasMore: false };
-		}
+	async function loadInitialStreaming(
+		targetCount = 50,
+		onPage?: (pageMessages: Message[]) => void
+	): Promise<{ messages: Message[]; hasMore: boolean }> {
+		const latestBlock = await getLatestMessageBlock();
+		const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
 
-		let currentFromBlock = oldestBlockQueried;
-		const collected: any[] = [];
+		const { messages, nextBlock } = await fetchPages(startBlock, targetCount, onPage);
+		oldestBlockQueried = nextBlock;
+		latestBlockQueried = startBlock;
 
-		while (collected.length < targetCount && currentFromBlock > deployBlock) {
-			const pageToBlock = currentFromBlock;
-			const pageFromBlock =
-				currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
+		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
+	}
 
-			const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
-			// Append because we're going from newest to oldest blocks
-			collected.push(...pageMessages);
+	async function loadMore(targetCount = 50): Promise<{ messages: Message[]; hasMore: boolean }> {
+		if (!oldestBlockQueried) throw new Error('Must call loadInitial first');
+		if (oldestBlockQueried <= CONTRACT_DEPLOY_BLOCK) return { messages: [], hasMore: false };
 
-			currentFromBlock = pageFromBlock - 1n;
-			if (pageFromBlock === deployBlock) {
-				break;
-			}
-		}
+		const { messages, nextBlock } = await fetchPages(oldestBlockQueried, targetCount);
+		oldestBlockQueried = nextBlock;
 
-		// Sort collected by timestamp descending (newest first)
-		collected.sort((a, b) => b.timestamp - a.timestamp);
-
-		oldestBlockQueried = currentFromBlock;
-
-		return {
-			messages: collected,
-			hasMore: oldestBlockQueried > deployBlock,
-		};
+		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
 	}
 
 	return {
@@ -278,6 +243,18 @@ export function createMessageLoader() {
 
 // Wallet client (for sending transactions)
 let walletClient: ReturnType<typeof createWalletClient> | null = null;
+
+function createWalletClientForChain(provider: EthereumProvider, chainId: number) {
+	return createWalletClient({
+		chain: {
+			id: chainId,
+			name: 'Unknown',
+			nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+			rpcUrls: { default: { http: [] } },
+		},
+		transport: custom(provider),
+	});
+}
 
 // Auto-connect on load
 export async function autoConnect() {
@@ -299,15 +276,7 @@ export async function autoConnect() {
 		const chainIdHex = await provider.request({ method: 'eth_chainId' });
 		const chainId = parseInt(chainIdHex, 16);
 
-		walletClient = createWalletClient({
-			chain: {
-				id: chainId,
-				name: 'Unknown',
-				nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-				rpcUrls: { default: { http: [] } },
-			},
-			transport: custom(provider),
-		});
+		walletClient = createWalletClientForChain(provider, chainId);
 		account.set(stored as `0x${string}`);
 		isConnected.set(true);
 	} catch {
@@ -333,20 +302,11 @@ export async function connect() {
 		const chainIdHex = await provider.request({ method: 'eth_chainId' });
 		const chainId = parseInt(chainIdHex, 16);
 
-		// Create wallet client with wallet's chain
-		walletClient = createWalletClient({
-			chain: {
-				id: chainId,
-				name: 'Unknown',
-				nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-				rpcUrls: { default: { http: [] } },
-			},
-			transport: custom(provider),
-		});
+		walletClient = createWalletClientForChain(provider, chainId);
 
 		return address;
-	} catch (err: any) {
-		error.set(err.message);
+	} catch (err) {
+		error.set((err as Error).message);
 		throw err;
 	}
 }
@@ -399,7 +359,7 @@ export async function postMessage(message: string, topics: Topics = null) {
 }
 
 // Subscribe to new messages
-export function watchMessages(callback: (message: any) => void) {
+export function watchMessages(callback: (message: Message) => void) {
 	return getPublicClient().watchContractEvent({
 		address: pinboContractAddress,
 		abi: pinboAbi,

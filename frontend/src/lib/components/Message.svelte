@@ -1,30 +1,23 @@
 <script lang="ts">
 	import { ROUTES } from '$lib/types';
 	import Address from './Address.svelte';
-	import { marked } from 'marked';
-	import DOMPurify from 'dompurify';
+	import { renderMarkdown } from '$lib/utils';
 	import { getMessageByTxHash, TOPIC_TYPE } from '$lib/ethereum';
 	import { bytesToHex } from 'viem';
+	import Message from './Message.svelte';
+
+	import type { Message as MessageType } from '$lib/types';
 
 	interface Props {
-		message: {
-			sender: string;
-			message: string;
-			timestamp?: number;
-			blockNumber: bigint;
-			txHash: string;
-			topics?: Array<[number, Uint8Array]> | null;
-		};
+		message: MessageType;
 		showPermalink?: boolean;
 		showReply?: boolean;
-		onReply?: (message: Props['message']) => void;
+		onReply?: (message: MessageType) => void;
 	}
 
 	let { message, showPermalink = true, showReply = true, onReply }: Props = $props();
 
-	const reposts = $derived(
-		(message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST)
-	);
+	const reposts = $derived((message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST));
 
 	function formatTime(timestamp: number) {
 		const now = Date.now();
@@ -42,11 +35,6 @@
 		return new Date(timestamp).toLocaleString();
 	}
 
-	function renderMarkdown(text: string): string {
-		const html = marked.parse(text, { async: false }) as string;
-		return DOMPurify.sanitize(html);
-	}
-
 	async function fetchRepost(bytes: Uint8Array) {
 		const txHash = bytesToHex(bytes) as `0x${string}`;
 		return getMessageByTxHash(txHash);
@@ -59,7 +47,7 @@
 			<Address address={message.sender} showFull={true} />
 			<span class="middot">·</span>
 			<span class="timestamp"
-				>{message.timestamp
+				>{message.timestamp != null
 					? showPermalink
 						? formatTime(message.timestamp)
 						: new Date(message.timestamp).toLocaleString()
@@ -82,7 +70,7 @@
 			{#await fetchRepost(bytes)}
 				<div class="repost-loading">loading repost…</div>
 			{:then reposted}
-				<svelte:self message={reposted} showPermalink={false} showReply={false} />
+				<Message message={reposted} showPermalink={false} showReply={false} />
 			{:catch}
 				<div class="repost-error">repost not found</div>
 			{/await}
@@ -114,7 +102,7 @@
 	}
 	.timestamp {
 		color: var(--text-secondary);
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 	}
 	.message-actions {
 		display: flex;
@@ -124,7 +112,7 @@
 	}
 	.permalink {
 		font-size: 1rem;
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 	}
 	.reply-btn {
 		background: none;
@@ -133,7 +121,7 @@
 		cursor: pointer;
 		font-size: 1.2rem;
 		color: var(--primary);
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 	}
 	.reply-btn:hover {
 		text-decoration: underline;
@@ -165,6 +153,6 @@
 	.repost-error {
 		font-size: 0.75rem;
 		color: var(--text-secondary);
-		font-family: monospace;
+		font-family: ui-monospace, monospace;
 	}
 </style>
