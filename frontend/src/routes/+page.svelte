@@ -166,13 +166,17 @@
 				<div class="connected">
 					<Address address={$account!} />
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
-					<span class="middot">·</span>
 					<button
 						class="btn post-btn"
 						onclick={() => (showPostForm = !showPostForm)}
 						disabled={showAbout || !!permalinkMessage}>POST</button
 					>
 				</div>
+				<button
+					class="btn post-fab"
+					onclick={() => (showPostForm = !showPostForm)}
+					disabled={showAbout || !!permalinkMessage}>+</button
+				>
 			{:else}
 				<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
 			{/if}
@@ -314,6 +318,36 @@
 	.post-btn {
 		background-color: var(--secondary);
 		margin-left: 0.5rem;
+	}
+	.post-fab {
+		display: none;
+	}
+	@media (max-width: 600px) {
+		.post-btn {
+			display: none;
+		}
+		.post-fab {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			position: fixed;
+			bottom: 1.5rem;
+			right: 1.5rem;
+			width: 3.5rem;
+			height: 3.5rem;
+			border-radius: 50%;
+			background-color: var(--secondary);
+			color: var(--bg0);
+			font-size: 1.75rem;
+			border: none;
+			cursor: pointer;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+			z-index: 100;
+		}
+		.post-fab:disabled {
+			opacity: 0.4;
+			cursor: not-allowed;
+		}
 	}
 	.btn-icon {
 		background: none;

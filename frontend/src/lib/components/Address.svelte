@@ -27,7 +27,7 @@
 
 	function getDisplayName() {
 		if (ensName) return ensName;
-		if (showFull) return address.slice(0, 6) + '...' + address.slice(-4);
+		if (showFull) return address.slice(0, 6) + '…' + address.slice(-4);
 		return '0x' + address.slice(2, 6);
 	}
 

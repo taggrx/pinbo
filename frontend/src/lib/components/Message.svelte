@@ -41,8 +41,9 @@
 
 <div class="message card">
 	<div class="message-header">
-		<Address address={message.sender} showFull={true} />
 		<span class="message-meta">
+			<Address address={message.sender} showFull={true} />
+			<span class="middot">·</span>
 			<span class="timestamp"
 				>{message.timestamp
 					? showPermalink
@@ -50,11 +51,10 @@
 						: new Date(message.timestamp).toLocaleString()
 					: 'BLOCK ' + message.blockNumber}</span
 			>
-			{#if showPermalink}
-				<span class="middot">·</span>
-				<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
-			{/if}
 		</span>
+		{#if showPermalink}
+			<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
+		{/if}
 	</div>
 	<div class="message-text">{@html renderMarkdown(message.message)}</div>
 </div>
