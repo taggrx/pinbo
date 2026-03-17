@@ -4,6 +4,7 @@
 	import {
 		account,
 		isConnected,
+		wrongNetwork,
 		connect,
 		disconnect,
 		autoConnect,
@@ -11,16 +12,19 @@
 		waitForMessage,
 		watchMessages,
 		getMessageByTxHash,
+		getMessagesByAddress,
 		createMessageLoader,
+		getFee,
 		TOPIC_TYPE,
 	} from '$lib/ethereum';
-	import { hexToBytes } from 'viem';
+	import { hexToBytes, formatEther } from 'viem';
 	import { fade } from 'svelte/transition';
 	import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
 	import TuiEditor from '$lib/components/TuiEditor.svelte';
 	import { ROUTES, type Message as MessageType } from '$lib/types';
+	import { pinboChain } from '$lib/chains';
 	import readme from '../../../README.md?raw';
 
 	let aboutContent = $state('');
@@ -40,6 +44,7 @@
 			localStorage.removeItem(DRAFT_KEY);
 		}
 	});
+
 	let posting = $state(false);
 	let pendingTxHash = $state<string | null>(null);
 	let loading = $state(true);
@@ -53,8 +58,22 @@
 	let showAbout = $state(false);
 	let globalError = $state<string | null>(null);
 	let replyTo = $state<MessageType | null>(null);
+	let profileAddress = $state<string | null>(null);
+	let profileMessages = $state<MessageType[]>([]);
+	let profileLoading = $state(false);
+	let fee = $state<bigint | null>(null);
+
 	const rpcUrlFull = import.meta.env.VITE_LOCAL_RPC_URL;
-	const rpcUrl = rpcUrlFull.replace(/^https?:\/\//, '');
+
+	$effect(() => {
+		if (showPostForm) {
+			getFee()
+				.then((f) => (fee = f))
+				.catch(() => {});
+		} else {
+			fee = null;
+		}
+	});
 
 	function togglePostForm() {
 		showPostForm = !showPostForm;
@@ -67,26 +86,42 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
+
 	async function handleHashChange() {
 		if (!browser) return;
 		const hash = window.location.hash;
 		showPostForm = false;
 		replyTo = null;
+		profileAddress = null;
+		profileMessages = [];
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
 		} else {
 			showAbout = false;
-			const match = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
-			if (match) {
+			const permalinkMatch = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
+			const profileMatch = hash.match(/^#\/u\/(0x[a-fA-F0-9]{40})$/i);
+
+			if (permalinkMatch) {
 				permalinkMessage = null;
 				permalinkLoading = true;
 				try {
-					permalinkMessage = await getMessageByTxHash(match[1] as `0x${string}`);
-				} catch (e) {
+					permalinkMessage = await getMessageByTxHash(permalinkMatch[1] as `0x${string}`);
+				} catch {
 					permalinkMessage = null;
 				} finally {
 					permalinkLoading = false;
+				}
+			} else if (profileMatch) {
+				permalinkMessage = null;
+				profileAddress = profileMatch[1];
+				profileLoading = true;
+				try {
+					profileMessages = await getMessagesByAddress(profileMatch[1] as `0x${string}`);
+				} catch {
+					profileMessages = [];
+				} finally {
+					profileLoading = false;
 				}
 			} else {
 				permalinkMessage = null;
@@ -104,11 +139,9 @@
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(
 				50,
 				(pageMessages: any[]) => {
-					// First page: replace messages, subsequent pages append to end
 					if (messages.length === 0) {
 						messages = pageMessages;
 					} else {
-						// Older pages should be appended at the end (since they are older)
 						messages = [...messages, ...pageMessages];
 					}
 				}
@@ -122,7 +155,6 @@
 
 		unwatch = watchMessages((message) => {
 			messages = [message, ...messages];
-			// Clear pendingTxHash if this is the transaction we're waiting for
 			if (pendingTxHash && message.txHash === pendingTxHash) {
 				pendingTxHash = null;
 			}
@@ -180,6 +212,21 @@
 	}
 </script>
 
+<svelte:head>
+	{#if permalinkMessage}
+		<title>Pinbo — {permalinkMessage.sender.slice(0, 6)}…{permalinkMessage.sender.slice(-4)}</title>
+		<meta
+			property="og:title"
+			content="Pinbo — {permalinkMessage.sender.slice(0, 6)}…{permalinkMessage.sender.slice(-4)}"
+		/>
+		<meta property="og:description" content={permalinkMessage.message.slice(0, 200)} />
+	{:else if profileAddress}
+		<title>Pinbo — {profileAddress.slice(0, 6)}…{profileAddress.slice(-4)}</title>
+	{:else}
+		<title>Pinbo</title>
+	{/if}
+</svelte:head>
+
 <div class="container">
 	<header class="header">
 		<h1 class="logo">
@@ -198,13 +245,13 @@
 					<button
 						class="btn post-btn"
 						onclick={togglePostForm}
-						disabled={showAbout || !!permalinkMessage}>POST</button
+						disabled={showAbout || !!permalinkMessage || !!profileAddress}>POST</button
 					>
 				</div>
 				<button
 					class="btn post-fab"
 					onclick={togglePostForm}
-					disabled={showAbout || !!permalinkMessage}
+					disabled={showAbout || !!permalinkMessage || !!profileAddress}
 					style:display={showPostForm ? 'none' : ''}>+</button
 				>
 			{:else}
@@ -230,8 +277,14 @@
 		</div>
 	{/if}
 
+	{#if $wrongNetwork}
+		<div class="error-banner" role="alert">
+			Wrong network — please switch your wallet to {pinboChain.name}.
+		</div>
+	{/if}
+
 	<main>
-		{#if $isConnected && !permalinkMessage && !showAbout}
+		{#if $isConnected && !$wrongNetwork && !permalinkMessage && !showAbout && !profileAddress}
 			{#if pendingTxHash}
 				<div class="loading">LOADING...</div>
 			{:else if showPostForm}
@@ -250,6 +303,9 @@
 								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
 							</button>
 						</div>
+						{#if fee !== null}
+							<div class="fee-info">Fee: {formatEther(fee)} ETH + gas</div>
+						{/if}
 					</div>
 					{#if replyTo}
 						<div class="reply-to">
@@ -274,6 +330,25 @@
 					target="_blank"
 					rel="noopener noreferrer">{permalinkMessage.txHash}</a
 				>
+				</div>
+		{:else if profileAddress}
+			<div class="profile-section">
+				<div class="profile-header">
+					Messages from <Address address={profileAddress as `0x${string}`} showFull={true} />
+				</div>
+				{#if profileLoading}
+					<div class="loading">LOADING...</div>
+				{:else if profileMessages.length === 0}
+					<div class="empty">NO MESSAGES FROM THIS ADDRESS.</div>
+				{:else}
+					<div class="messages-list">
+						{#each profileMessages as message (message.txHash)}
+							<div transition:fade>
+								<Message {message} showSender={false} onReply={$isConnected ? handleReply : undefined} />
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{:else if !replyTo}
 			<div class="messages-section">
@@ -283,7 +358,7 @@
 					<div class="empty">NO MESSAGES YET. BE THE FIRST TO POST!</div>
 				{:else}
 					<div class="messages-list">
-						{#each messages as message (message.blockNumber)}
+						{#each messages as message (message.txHash)}
 							<div transition:fade>
 								<Message {message} onReply={$isConnected ? handleReply : undefined} />
 							</div>
@@ -457,6 +532,12 @@
 		flex-direction: column;
 		gap: 1rem;
 	}
+	.fee-info {
+		font-size: 0.8rem;
+		color: var(--text-secondary);
+		font-family: var(--font-mono);
+		text-align: right;
+	}
 	.loading,
 	.empty {
 		text-align: center;
@@ -488,6 +569,16 @@
 		font-family: var(--font-mono);
 		color: var(--text-secondary);
 		word-break: break-all;
+	}
+	.profile-section {
+		margin-top: 1rem;
+	}
+	.profile-header {
+		margin-bottom: 1.5rem;
+		font-size: 1.1rem;
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
 	}
 	.footer {
 		margin-top: 4rem;

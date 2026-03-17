@@ -10,4 +10,5 @@ export interface Message {
 export const ROUTES = {
 	ABOUT: '#/about',
 	MESSAGE: (txHash: string) => `#/p/${txHash}`,
+	PROFILE: (address: string) => `#/u/${address}`,
 } as const;

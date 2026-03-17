@@ -1,21 +1,20 @@
 <script lang="ts">
-	import { ROUTES } from '$lib/types';
+	import { ROUTES, type Message as MessageType } from '$lib/types';
 	import Address from './Address.svelte';
 	import { renderMarkdown } from '$lib/utils';
 	import { getMessageByTxHash, TOPIC_TYPE } from '$lib/ethereum';
 	import { bytesToHex } from 'viem';
 	import Message from './Message.svelte';
 
-	import type { Message as MessageType } from '$lib/types';
-
 	interface Props {
 		message: MessageType;
 		showPermalink?: boolean;
 		showReply?: boolean;
+		showSender?: boolean;
 		onReply?: (message: MessageType) => void;
 	}
 
-	let { message, showPermalink = true, showReply = true, onReply }: Props = $props();
+	let { message, showPermalink = true, showReply = true, showSender = true, onReply }: Props = $props();
 
 	const reposts = $derived((message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST));
 
@@ -44,8 +43,10 @@
 <div class="message card">
 	<div class="message-header">
 		<span class="message-meta">
-			<Address address={message.sender} showFull={true} />
-			<span class="middot">·</span>
+			{#if showSender}
+				<Address address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
+				<span class="middot">·</span>
+			{/if}
 			<span class="timestamp"
 				>{message.timestamp != null
 					? showPermalink

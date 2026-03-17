@@ -59,33 +59,23 @@ function decodeMessage(data: Uint8Array): { message: string; topics: Topics } {
 	return { message: text, topics: null };
 }
 
-// Types
-type EthereumProvider = any; // TODO: better type
+type EthereumProvider = any;
 
-// Store for connected account
 export const account = writable<`0x${string}` | null>(null);
 export const isConnected = writable(false);
-export const error = writable<string | null>(null);
+export const wrongNetwork = writable(false);
 
 const STORAGE_KEY = 'pinbo_account';
 
-// ENS resolution cache
 const ensCache = new Map<string, string | null>();
 
-function getEnsClient() {
-	const ensRpc = import.meta.env.VITE_ENS_RPC || 'https://1.rpc.thirdweb.com';
-	return createPublicClient({
-		chain: mainnet,
-		transport: http(ensRpc),
-	});
-}
-
 export async function resolveEns(address: `0x${string}`): Promise<string | null> {
-	if (ensCache.has(address)) {
-		return ensCache.get(address) || null;
-	}
+	const ensRpc = import.meta.env.VITE_ENS_RPC;
+	if (!ensRpc) return null;
+	if (ensCache.has(address)) return ensCache.get(address) || null;
 	try {
-		const ensName = await getEnsClient().getEnsName({ address });
+		const client = createPublicClient({ chain: mainnet, transport: http(ensRpc) });
+		const ensName = await client.getEnsName({ address });
 		ensCache.set(address, ensName || null);
 		return ensName;
 	} catch {
@@ -94,121 +84,100 @@ export async function resolveEns(address: `0x${string}`): Promise<string | null>
 	}
 }
 
-// Public client (read-only)
 function getPublicClient() {
-	const rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL;
 	return createPublicClient({
 		chain: pinboChain,
-		transport: http(rpcUrl),
+		transport: http(import.meta.env.VITE_LOCAL_RPC_URL),
 	});
 }
 
-// Get current fee from contract
 export async function getFee(): Promise<bigint> {
-	const fee = await getPublicClient().readContract({
+	return (await getPublicClient().readContract({
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		functionName: 'fee',
 		args: [],
-	});
-	return fee as bigint;
+	})) as bigint;
 }
 
-// Get latest message block from contract
-export async function getLatestMessageBlock(): Promise<bigint> {
-	console.log('[Paging] getLatestMessageBlock: calling contract');
-	try {
-		const block = await getPublicClient().readContract({
-			address: pinboContractAddress,
-			abi: pinboAbi,
-			functionName: 'latestMessageBlock',
-			args: [],
-		});
-		console.log('[Paging] getLatestMessageBlock: result =', block);
-		return block as bigint;
-	} catch (e) {
-		console.error('[Paging] getLatestMessageBlock: error =', e);
-		throw e;
-	}
+async function getLatestMessageBlock(): Promise<bigint> {
+	return (await getPublicClient().readContract({
+		address: pinboContractAddress,
+		abi: pinboAbi,
+		functionName: 'latestMessageBlock',
+		args: [],
+	})) as bigint;
 }
 
-// Get contract deployment block from environment
 const CONTRACT_DEPLOY_BLOCK = import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK
 	? BigInt(import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK)
 	: 0n;
 
-// Page size in blocks for log fetching (most RPCs can handle ~1000 blocks per request)
 const PAGE_SIZE = 1000n;
 
-// Fetch logs in a specific block range (inclusive)
-async function fetchLogsInRange(fromBlock: bigint, toBlock: bigint): Promise<any[]> {
-	if (fromBlock > toBlock) {
-		// Swap to ensure fromBlock <= toBlock
-		[fromBlock, toBlock] = [toBlock, fromBlock];
-	}
-	console.log('[Paging] getLogs from', fromBlock, 'to', toBlock);
+const MESSAGE_EVENT = parseAbiItem(
+	'event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'
+);
+
+function logToMessage(log: any): Message {
+	const data = hexToBytes(log.args.message as `0x${string}`);
+	const { message, topics } = decodeMessage(data);
+	return {
+		sender: log.args.sender as `0x${string}`,
+		message,
+		topics,
+		timestamp: Number(log.args.timestamp) * 1000,
+		blockNumber: log.blockNumber,
+		txHash: log.transactionHash,
+	};
+}
+
+async function fetchLogsInRange(
+	fromBlock: bigint,
+	toBlock: bigint,
+	args?: Record<string, unknown>
+): Promise<Message[]> {
+	if (fromBlock > toBlock) [fromBlock, toBlock] = [toBlock, fromBlock];
 	try {
 		const logs = await getPublicClient().getLogs({
 			address: pinboContractAddress,
-			event: parseAbiItem(
-				'event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'
-			),
+			event: MESSAGE_EVENT,
+			args,
 			fromBlock,
 			toBlock,
 		});
-		console.log('[Paging] getLogs: got', logs.length, 'logs');
-		// Transform logs (decompress)
-		const messages = logs.map((log) => {
-			const data = hexToBytes(log.args.message as `0x${string}`);
-			const { message, topics } = decodeMessage(data);
-			return {
-				sender: log.args.sender as `0x${string}`,
-				message,
-				topics,
-				timestamp: Number(log.args.timestamp) * 1000,
-				blockNumber: log.blockNumber,
-				txHash: log.transactionHash,
-			};
-		});
-		// Sort by timestamp descending (newest first)
-		messages.sort((a, b) => b.timestamp - a.timestamp);
-		return messages;
+		return logs.map(logToMessage).sort((a, b) => b.timestamp - a.timestamp);
 	} catch (e) {
-		console.error('[Paging] getLogs: error =', e);
+		console.error('fetchLogsInRange error:', e);
 		throw e;
 	}
 }
 
-// Create a message loader with pagination state
+async function fetchPages(
+	startBlock: bigint,
+	stopBlock: bigint,
+	targetCount: number,
+	args?: Record<string, unknown>,
+	onPage?: (pageMessages: Message[]) => void
+): Promise<{ messages: Message[]; nextBlock: bigint }> {
+	let currentBlock = startBlock;
+	const collected: Message[] = [];
+
+	while (collected.length < targetCount && currentBlock > stopBlock) {
+		const pageFrom = currentBlock - PAGE_SIZE > stopBlock ? currentBlock - PAGE_SIZE : stopBlock;
+		const pageMessages = await fetchLogsInRange(pageFrom, currentBlock, args);
+		collected.push(...pageMessages);
+		onPage?.([...pageMessages]);
+		currentBlock = pageFrom - 1n;
+		if (pageFrom === stopBlock) break;
+	}
+
+	return { messages: collected.sort((a, b) => b.timestamp - a.timestamp), nextBlock: currentBlock };
+}
+
 export function createMessageLoader() {
 	let oldestBlockQueried: bigint | null = null;
 	let latestBlockQueried: bigint | null = null;
-
-	async function fetchPages(
-		startBlock: bigint,
-		targetCount: number,
-		onPage?: (pageMessages: Message[]) => void
-	): Promise<{ messages: Message[]; nextBlock: bigint }> {
-		const deployBlock = CONTRACT_DEPLOY_BLOCK;
-		let currentFromBlock = startBlock;
-		const collected: Message[] = [];
-
-		while (collected.length < targetCount && currentFromBlock > deployBlock) {
-			const pageToBlock = currentFromBlock;
-			const pageFromBlock =
-				currentFromBlock - PAGE_SIZE > deployBlock ? currentFromBlock - PAGE_SIZE : deployBlock;
-
-			const pageMessages = await fetchLogsInRange(pageFromBlock, pageToBlock);
-			collected.push(...pageMessages);
-			onPage?.([...pageMessages]);
-
-			currentFromBlock = pageFromBlock - 1n;
-			if (pageFromBlock === deployBlock) break;
-		}
-
-		collected.sort((a, b) => b.timestamp - a.timestamp);
-		return { messages: collected, nextBlock: currentFromBlock };
-	}
 
 	async function loadInitialStreaming(
 		targetCount = 50,
@@ -217,7 +186,7 @@ export function createMessageLoader() {
 		const latestBlock = await getLatestMessageBlock();
 		const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
 
-		const { messages, nextBlock } = await fetchPages(startBlock, targetCount, onPage);
+		const { messages, nextBlock } = await fetchPages(startBlock, CONTRACT_DEPLOY_BLOCK, targetCount, undefined, onPage);
 		oldestBlockQueried = nextBlock;
 		latestBlockQueried = startBlock;
 
@@ -228,7 +197,7 @@ export function createMessageLoader() {
 		if (!oldestBlockQueried) throw new Error('Must call loadInitial first');
 		if (oldestBlockQueried <= CONTRACT_DEPLOY_BLOCK) return { messages: [], hasMore: false };
 
-		const { messages, nextBlock } = await fetchPages(oldestBlockQueried, targetCount);
+		const { messages, nextBlock } = await fetchPages(oldestBlockQueried, CONTRACT_DEPLOY_BLOCK, targetCount);
 		oldestBlockQueried = nextBlock;
 
 		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
@@ -241,7 +210,13 @@ export function createMessageLoader() {
 	};
 }
 
-// Wallet client (for sending transactions)
+export async function getMessagesByAddress(address: `0x${string}`): Promise<Message[]> {
+	const latestBlock = await getPublicClient().getBlockNumber();
+	const { messages } = await fetchPages(latestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address });
+	return messages;
+}
+
+
 let walletClient: ReturnType<typeof createWalletClient> | null = null;
 
 function createWalletClientForChain(provider: EthereumProvider, chainId: number) {
@@ -256,91 +231,67 @@ function createWalletClientForChain(provider: EthereumProvider, chainId: number)
 	});
 }
 
-// Auto-connect on load
 export async function autoConnect() {
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (!stored) return;
-
 	try {
 		if (typeof window === 'undefined' || !window.ethereum) return;
 		const provider = window.ethereum as EthereumProvider;
 		if (typeof provider.request !== 'function') return;
 
-		// Check if account is still available
 		const accounts = await provider.request({ method: 'eth_accounts' });
 		if (!accounts.includes(stored)) {
 			localStorage.removeItem(STORAGE_KEY);
 			return;
 		}
 
-		// Get chain ID from wallet
-		const chainIdHex = await provider.request({ method: 'eth_chainId' });
-		const chainId = parseInt(chainIdHex, 16);
-
+		const chainId = parseInt(await provider.request({ method: 'eth_chainId' }), 16);
 		walletClient = createWalletClientForChain(provider, chainId);
 		account.set(stored as `0x${string}`);
 		isConnected.set(true);
+		wrongNetwork.set(chainId !== pinboChain.id);
 	} catch {
 		localStorage.removeItem(STORAGE_KEY);
 	}
 }
 
-// Initialize connection
 export async function connect() {
-	try {
-		if (typeof window === 'undefined' || !window.ethereum) {
-			throw new Error('No wallet detected');
-		}
-		const provider = window.ethereum as EthereumProvider;
-		if (typeof provider.request !== 'function') {
-			throw new Error('Wallet does not support the required interface');
-		}
-		// Request account access
-		const [address] = await provider.request({ method: 'eth_requestAccounts' });
-		account.set(address);
-		isConnected.set(true);
-		error.set(null);
-		localStorage.setItem(STORAGE_KEY, address);
-
-		// Get chain ID from wallet
-		const chainIdHex = await provider.request({ method: 'eth_chainId' });
-		const chainId = parseInt(chainIdHex, 16);
-
-		walletClient = createWalletClientForChain(provider, chainId);
-
-		return address;
-	} catch (err) {
-		error.set((err as Error).message);
-		throw err;
+	if (typeof window === 'undefined' || !window.ethereum) {
+		throw new Error('No wallet detected');
 	}
+	const provider = window.ethereum as EthereumProvider;
+	if (typeof provider.request !== 'function') {
+		throw new Error('Wallet does not support the required interface');
+	}
+	const [address] = await provider.request({ method: 'eth_requestAccounts' });
+	account.set(address);
+	isConnected.set(true);
+	localStorage.setItem(STORAGE_KEY, address);
+
+	const chainId = parseInt(await provider.request({ method: 'eth_chainId' }), 16);
+	walletClient = createWalletClientForChain(provider, chainId);
+	wrongNetwork.set(chainId !== pinboChain.id);
+
+	return address;
 }
 
-// Disconnect
 export function disconnect() {
 	account.set(null);
 	isConnected.set(false);
+	wrongNetwork.set(false);
 	walletClient = null;
 	localStorage.removeItem(STORAGE_KEY);
 }
 
-// Post a message
 export async function postMessage(message: string, topics: Topics = null) {
-	if (!walletClient) {
-		throw new Error('Not connected');
-	}
+	if (!walletClient) throw new Error('Not connected');
 	const currentAccount = get(account);
-	if (!currentAccount) {
-		throw new Error('No account');
-	}
+	if (!currentAccount) throw new Error('No account');
 
-	// Get current fee
 	const fee = await getFee();
-
-	const dataToStore = encodeMessage(message, topics);
-	const dataHex = bytesToHex(dataToStore);
-
-	// Estimate gas using public client
+	const dataHex = bytesToHex(encodeMessage(message, topics));
 	const publicClient = getPublicClient();
+
 	const gas = await publicClient.estimateContractGas({
 		address: pinboContractAddress,
 		abi: pinboAbi,
@@ -350,48 +301,31 @@ export async function postMessage(message: string, topics: Topics = null) {
 		value: fee,
 	});
 
-	const hash = await walletClient.writeContract({
+	return walletClient.writeContract({
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		functionName: 'postMessage',
 		args: [dataHex],
 		account: currentAccount,
 		value: fee,
-		gas: gas,
+		gas,
 	});
-	return hash;
 }
 
-// Subscribe to new messages
 export function watchMessages(callback: (message: Message) => void) {
 	return getPublicClient().watchContractEvent({
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		eventName: 'MessagePosted',
-		onLogs: (logs) => {
-			logs.forEach((log) => {
-				const data = hexToBytes(log.args.message as `0x${string}`);
-				const { message, topics } = decodeMessage(data);
-				callback({
-					sender: log.args.sender,
-					message,
-					topics,
-					timestamp: Number(log.args.timestamp) * 1000,
-					blockNumber: log.blockNumber,
-					txHash: log.transactionHash,
-				});
-			});
-		},
+		onLogs: (logs) => logs.forEach((log) => callback(logToMessage(log))),
 	});
 }
 
-// Wait for a transaction to be confirmed then return the message
 export async function waitForMessage(txHash: `0x${string}`) {
 	await getPublicClient().waitForTransactionReceipt({ hash: txHash });
 	return getMessageByTxHash(txHash);
 }
 
-// Get message by transaction hash
 export async function getMessageByTxHash(txHash: `0x${string}`) {
 	const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
 	const log = receipt.logs.find(
@@ -399,25 +333,15 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 	);
 	if (!log) throw new Error('Message not found');
 
-	// Get block to get timestamp
 	const block = await getPublicClient().getBlock({ blockNumber: log.blockNumber });
-	const timestamp = Number(block.timestamp) * 1000;
-
-	// Decode log using viem
-	const decoded = decodeEventLog({
-		abi: pinboAbi,
-		data: log.data,
-		topics: log.topics,
-	});
-
-	const data = hexToBytes(decoded.args.message as `0x${string}`);
-	const { message, topics } = decodeMessage(data);
+	const decoded = decodeEventLog({ abi: pinboAbi, data: log.data, topics: log.topics });
+	const { message, topics } = decodeMessage(hexToBytes(decoded.args.message as `0x${string}`));
 
 	return {
 		sender: decoded.args.sender as `0x${string}`,
 		message,
 		topics,
-		timestamp,
+		timestamp: Number(block.timestamp) * 1000,
 		blockNumber: log.blockNumber,
 		txHash: log.transactionHash,
 	};

@@ -5,9 +5,10 @@
 	interface Props {
 		address: string;
 		showFull?: boolean;
+		href?: string;
 	}
 
-	let { address, showFull = false }: Props = $props();
+	let { address, showFull = false, href }: Props = $props();
 
 	let ensName = $state<string | null>(null);
 	let loading = $state(true);
@@ -32,7 +33,7 @@
 	}
 
 	function getEtherscanLink() {
-		return `https://etherscan.io/address/${address}`;
+		return href ?? `https://etherscan.io/address/${address}`;
 	}
 
 	function getBlockie() {
