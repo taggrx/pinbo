@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -25,14 +27,14 @@ jobs:
         run: npm run build
         working-directory: frontend
         env:
-          VITE_LOCAL_RPC_URL: ${{ secrets.VITE_LOCAL_RPC_URL }}
-          VITE_PINBO_CONTRACT_ADDRESS: ${{ secrets.VITE_PINBO_CONTRACT_ADDRESS }}
-          VITE_CONTRACT_DEPLOY_BLOCK: ${{ secrets.VITE_CONTRACT_DEPLOY_BLOCK }}
-          VITE_ENS_RPC: ${{ secrets.VITE_ENS_RPC }}
-          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
+          VITE_LOCAL_RPC_URL: ${{ vars.VITE_LOCAL_RPC_URL }}
+          VITE_PINBO_CONTRACT_ADDRESS: ${{ vars.VITE_PINBO_CONTRACT_ADDRESS }}
+          VITE_CONTRACT_DEPLOY_BLOCK: ${{ vars.VITE_CONTRACT_DEPLOY_BLOCK }}
+          VITE_ENS_RPC: ${{ vars.VITE_ENS_RPC }}
+          VITE_WALLETCONNECT_PROJECT_ID: ${{ vars.VITE_WALLETCONNECT_PROJECT_ID }}
 
       - name: Archive build
-        run: tar -czf pinbo-${{ github.ref_name }}.tar.gz -C frontend/build .
+        run: tar -czf pinbo-${{ github.event.inputs.tag || github.ref_name }}.tar.gz -C frontend/build .
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
