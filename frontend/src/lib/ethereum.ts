@@ -210,9 +210,12 @@ export function createMessageLoader() {
 	};
 }
 
-export async function getMessagesByAddress(address: `0x${string}`): Promise<Message[]> {
+export async function getMessagesByAddress(
+	address: `0x${string}`,
+	onPage?: (messages: Message[]) => void
+): Promise<Message[]> {
 	const latestBlock = await getPublicClient().getBlockNumber();
-	const { messages } = await fetchPages(latestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address });
+	const { messages } = await fetchPages(latestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address }, onPage);
 	return messages;
 }
 

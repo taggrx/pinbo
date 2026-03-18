@@ -18,10 +18,10 @@
 		TOPIC_TYPE,
 	} from '$lib/ethereum';
 	import { hexToBytes, formatEther } from 'viem';
-	import { fade } from 'svelte/transition';
-	import { renderMarkdown } from '$lib/utils';
+import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
+	import MessageList from '$lib/components/MessageList.svelte';
 	import TuiEditor from '$lib/components/TuiEditor.svelte';
 	import { ROUTES, type Message as MessageType } from '$lib/types';
 	import { pinboChain } from '$lib/chains';
@@ -116,8 +116,11 @@
 				permalinkMessage = null;
 				profileAddress = profileMatch[1];
 				profileLoading = true;
+				profileMessages = [];
 				try {
-					profileMessages = await getMessagesByAddress(profileMatch[1] as `0x${string}`);
+					await getMessagesByAddress(profileMatch[1] as `0x${string}`, (page) => {
+						profileMessages = [...profileMessages, ...page];
+					});
 				} catch {
 					profileMessages = [];
 				} finally {
@@ -131,21 +134,20 @@
 	}
 
 	onMount(async () => {
-		await autoConnect();
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
+		messageLoader = createMessageLoader();
 		try {
-			messageLoader = createMessageLoader();
-			const { hasMore: more } = await messageLoader.loadInitialStreaming(
-				50,
-				(pageMessages: any[]) => {
+			const [, { hasMore: more }] = await Promise.all([
+				autoConnect(),
+				messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
 					if (messages.length === 0) {
 						messages = pageMessages;
 					} else {
 						messages = [...messages, ...pageMessages];
 					}
-				}
-			);
+				}),
+			]);
 			hasMore = more;
 		} catch (err) {
 			console.error('Failed to fetch messages:', err);
@@ -336,42 +338,25 @@
 				<div class="profile-header">
 					Messages from <Address address={profileAddress as `0x${string}`} showFull={true} />
 				</div>
-				{#if profileLoading}
-					<div class="loading">LOADING...</div>
-				{:else if profileMessages.length === 0}
-					<div class="empty">NO MESSAGES FROM THIS ADDRESS.</div>
-				{:else}
-					<div class="messages-list">
-						{#each profileMessages as message (message.txHash)}
-							<div transition:fade>
-								<Message {message} showSender={false} onReply={$isConnected ? handleReply : undefined} />
-							</div>
-						{/each}
-					</div>
-				{/if}
+				<MessageList
+					messages={profileMessages}
+					loading={profileLoading}
+					showSender={false}
+					emptyText="NO MESSAGES FROM THIS ADDRESS."
+					onReply={$isConnected ? handleReply : undefined}
+				/>
 			</div>
 		{:else if !replyTo}
 			<div class="messages-section">
-				{#if loading}
-					<div class="loading">LOADING...</div>
-				{:else if messages.length === 0}
-					<div class="empty">NO MESSAGES YET. BE THE FIRST TO POST!</div>
-				{:else}
-					<div class="messages-list">
-						{#each messages as message (message.txHash)}
-							<div transition:fade>
-								<Message {message} onReply={$isConnected ? handleReply : undefined} />
-							</div>
-						{/each}
-					</div>
-					{#if hasMore}
-						<div class="load-more">
-							<button class="btn" onclick={handleLoadMore} disabled={loadingMore}>
-								{loadingMore ? 'LOADING...' : 'MORE'}
-							</button>
-						</div>
-					{/if}
-				{/if}
+				<MessageList
+					{messages}
+					{loading}
+					{hasMore}
+					{loadingMore}
+					emptyText="NO MESSAGES YET. BE THE FIRST TO POST!"
+					onLoadMore={handleLoadMore}
+					onReply={$isConnected ? handleReply : undefined}
+				/>
 			</div>
 		{/if}
 	</main>
@@ -538,31 +523,7 @@
 		font-family: var(--font-mono);
 		text-align: right;
 	}
-	.loading,
-	.empty {
-		text-align: center;
-		padding: 2rem;
-		color: var(--text-secondary);
-	}
-	main > .loading {
-		margin: 2rem auto;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 200px;
-	}
-	.messages-list {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-	.load-more {
-		display: flex;
-		justify-content: center;
-		margin-top: 2rem;
-		margin-bottom: 2rem;
-	}
-	.permalink-tx {
+.permalink-tx {
 		text-align: center;
 		margin-top: 2rem;
 		font-size: 0.75rem;
