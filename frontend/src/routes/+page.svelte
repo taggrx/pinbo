@@ -320,13 +320,13 @@ import { renderMarkdown } from '$lib/utils';
 		{/if}
 
 		{#if showAbout}
-			<div class="about-section" transition:fade={{ duration: 150 }}>
+			<div class="about-section" in:fade={{ duration: 150 }}>
 				{@html aboutContent}
 			</div>
 		{:else if permalinkLoading}
-			<div class="loading" transition:fade={{ duration: 150 }}>LOADING...</div>
+			<div class="loading" in:fade={{ duration: 150 }}>LOADING...</div>
 		{:else if permalinkMessage}
-			<div transition:fade={{ duration: 150 }}>
+			<div in:fade={{ duration: 150 }}>
 				<Message message={permalinkMessage} showPermalink={false} />
 				<div class="permalink-tx">
 					TX: <a
@@ -337,7 +337,7 @@ import { renderMarkdown } from '$lib/utils';
 				</div>
 			</div>
 		{:else if profileAddress}
-			<div class="profile-section" transition:fade={{ duration: 150 }}>
+			<div class="profile-section" in:fade={{ duration: 150 }}>
 				<div class="profile-header">
 					Messages from <Address address={profileAddress as `0x${string}`} showFull={true} />
 				</div>
@@ -350,7 +350,7 @@ import { renderMarkdown } from '$lib/utils';
 				/>
 			</div>
 		{:else if !replyTo}
-			<div class="messages-section" transition:fade={{ duration: 150 }}>
+			<div class="messages-section" in:fade={{ duration: 150 }}>
 				<MessageList
 					{messages}
 					{loading}
