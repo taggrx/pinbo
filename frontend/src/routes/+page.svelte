@@ -526,7 +526,16 @@ import { renderMarkdown } from '$lib/utils';
 		font-family: var(--font-mono);
 		text-align: right;
 	}
-.permalink-tx {
+	.loading {
+		text-align: center;
+		padding: 2rem;
+		color: var(--text-secondary);
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		min-height: 200px;
+	}
+	.permalink-tx {
 		text-align: center;
 		margin-top: 2rem;
 		font-size: 0.75rem;
