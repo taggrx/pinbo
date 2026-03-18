@@ -15,12 +15,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install -g npm@11.6.2 && npm ci
         working-directory: frontend
 
       - name: Build
@@ -33,6 +33,7 @@ jobs:
           VITE_CHAIN_ID: "1"
           VITE_RPC_URL: "https://ethereum-rpc.publicnode.com"
           VITE_ENS_RPC: "https://1.rpc.thirdweb.com"
+          VITE_WALLETCONNECT_PROJECT_ID: "fe9c622a7be4d07ef72cb54be56e1feb"
 
       - name: Archive build
         run: tar -czf pinbo-${{ github.event.inputs.tag || github.ref_name }}.tar.gz -C frontend/build .

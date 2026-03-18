@@ -1,8 +1,6 @@
 import { writable, get } from 'svelte/store';
 import {
 	createPublicClient,
-	createWalletClient,
-	custom,
 	http,
 	parseAbiItem,
 	hexToBytes,
@@ -10,6 +8,8 @@ import {
 	decodeEventLog,
 } from 'viem';
 import { mainnet } from 'viem/chains';
+import { watchAccount, getWalletClient, disconnect as wagmiDisconnect } from '@wagmi/core';
+import { wagmiAdapter, appKitModal } from './wallet';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import type { Message } from './types';
@@ -59,13 +59,9 @@ function decodeMessage(data: Uint8Array): { message: string; topics: Topics } {
 	return { message: text, topics: null };
 }
 
-type EthereumProvider = any;
-
 export const account = writable<`0x${string}` | null>(null);
 export const isConnected = writable(false);
 export const wrongNetwork = writable(false);
-
-const STORAGE_KEY = 'pinbo_account';
 
 const ensCache = new Map<string, string | null>();
 
@@ -220,76 +216,36 @@ export async function getMessagesByAddress(
 }
 
 
-let walletClient: ReturnType<typeof createWalletClient> | null = null;
-
-function createWalletClientForChain(provider: EthereumProvider, chainId: number) {
-	return createWalletClient({
-		chain: {
-			id: chainId,
-			name: 'Unknown',
-			nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-			rpcUrls: { default: { http: [] } },
+export function initWallet() {
+	return watchAccount(wagmiAdapter.wagmiConfig, {
+		onChange(data) {
+			if (data.isConnected && data.address) {
+				account.set(data.address);
+				isConnected.set(true);
+				wrongNetwork.set(data.chain?.id !== pinboChain.id);
+			} else {
+				account.set(null);
+				isConnected.set(false);
+				wrongNetwork.set(false);
+			}
 		},
-		transport: custom(provider),
 	});
 }
 
-export async function autoConnect() {
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (!stored) return;
-	try {
-		if (typeof window === 'undefined' || !window.ethereum) return;
-		const provider = window.ethereum as EthereumProvider;
-		if (typeof provider.request !== 'function') return;
-
-		const accounts = await provider.request({ method: 'eth_accounts' });
-		if (!accounts.includes(stored)) {
-			localStorage.removeItem(STORAGE_KEY);
-			return;
-		}
-
-		const chainId = parseInt(await provider.request({ method: 'eth_chainId' }), 16);
-		walletClient = createWalletClientForChain(provider, chainId);
-		account.set(stored as `0x${string}`);
-		isConnected.set(true);
-		wrongNetwork.set(chainId !== pinboChain.id);
-	} catch {
-		localStorage.removeItem(STORAGE_KEY);
-	}
-}
-
-export async function connect() {
-	if (typeof window === 'undefined' || !window.ethereum) {
-		throw new Error('No wallet detected');
-	}
-	const provider = window.ethereum as EthereumProvider;
-	if (typeof provider.request !== 'function') {
-		throw new Error('Wallet does not support the required interface');
-	}
-	const [address] = await provider.request({ method: 'eth_requestAccounts' });
-	account.set(address);
-	isConnected.set(true);
-	localStorage.setItem(STORAGE_KEY, address);
-
-	const chainId = parseInt(await provider.request({ method: 'eth_chainId' }), 16);
-	walletClient = createWalletClientForChain(provider, chainId);
-	wrongNetwork.set(chainId !== pinboChain.id);
-
-	return address;
+export function connect() {
+	appKitModal.open();
 }
 
 export function disconnect() {
-	account.set(null);
-	isConnected.set(false);
-	wrongNetwork.set(false);
-	walletClient = null;
-	localStorage.removeItem(STORAGE_KEY);
+	wagmiDisconnect(wagmiAdapter.wagmiConfig);
 }
 
 export async function postMessage(message: string, topics: Topics = null) {
-	if (!walletClient) throw new Error('Not connected');
 	const currentAccount = get(account);
-	if (!currentAccount) throw new Error('No account');
+	if (!currentAccount) throw new Error('Not connected');
+
+	const wc = await getWalletClient(wagmiAdapter.wagmiConfig);
+	if (!wc) throw new Error('No wallet client');
 
 	const fee = await getFee();
 	const dataHex = bytesToHex(encodeMessage(message, topics));
@@ -304,7 +260,7 @@ export async function postMessage(message: string, topics: Topics = null) {
 		value: fee,
 	});
 
-	return walletClient.writeContract({
+	return wc.writeContract({
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		functionName: 'postMessage',

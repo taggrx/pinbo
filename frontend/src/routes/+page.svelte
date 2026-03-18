@@ -7,7 +7,7 @@
 		wrongNetwork,
 		connect,
 		disconnect,
-		autoConnect,
+		initWallet,
 		postMessage,
 		waitForMessage,
 		watchMessages,
@@ -50,6 +50,7 @@ import { renderMarkdown } from '$lib/utils';
 	let pendingTxHash = $state<string | null>(null);
 	let loading = $state(true);
 	let unwatch: (() => void) | null = null;
+	let unwatchWallet: () => void = () => {};
 	let permalinkMessage = $state<MessageType | null>(null);
 	let permalinkLoading = $state(false);
 	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
@@ -135,20 +136,18 @@ import { renderMarkdown } from '$lib/utils';
 	}
 
 	onMount(async () => {
+		unwatchWallet = initWallet();
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
 		messageLoader = createMessageLoader();
 		try {
-			const [, { hasMore: more }] = await Promise.all([
-				autoConnect(),
-				messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
-					if (messages.length === 0) {
-						messages = pageMessages;
-					} else {
-						messages = [...messages, ...pageMessages];
-					}
-				}),
-			]);
+			const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
+				if (messages.length === 0) {
+					messages = pageMessages;
+				} else {
+					messages = [...messages, ...pageMessages];
+				}
+			});
 			hasMore = more;
 		} catch (err) {
 			console.error('Failed to fetch messages:', err);
@@ -166,6 +165,7 @@ import { renderMarkdown } from '$lib/utils';
 
 	onDestroy(() => {
 		if (unwatch) unwatch();
+		unwatchWallet();
 		if (browser) {
 			window.removeEventListener('hashchange', handleHashChange);
 		}
@@ -258,17 +258,7 @@ import { renderMarkdown } from '$lib/utils';
 					style:display={showPostForm ? 'none' : ''}>+</button
 				>
 			{:else}
-				<button
-					class="btn connect"
-					onclick={async () => {
-						globalError = null;
-						try {
-							await connect();
-						} catch (e) {
-							globalError = (e as Error).message;
-						}
-					}}>CONNECT WALLET</button
-				>
+				<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
 			{/if}
 		</div>
 	</header>
