@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import Message from './Message.svelte';
 	import type { Message as MessageType } from '$lib/types';
 
@@ -31,7 +31,7 @@
 {:else}
 	<div class="messages-list">
 		{#each messages as message (message.txHash)}
-			<div transition:fade>
+			<div transition:fly={{ y: 6, duration: 200 }}>
 				<Message {message} {showSender} {onReply} />
 			</div>
 		{/each}

@@ -18,6 +18,7 @@
 		TOPIC_TYPE,
 	} from '$lib/ethereum';
 	import { hexToBytes, formatEther } from 'viem';
+	import { fade, slide } from 'svelte/transition';
 import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
@@ -273,14 +274,14 @@ import { renderMarkdown } from '$lib/utils';
 	</header>
 
 	{#if globalError}
-		<div class="error-banner" role="alert">
+		<div class="error-banner" role="alert" transition:fade={{ duration: 150 }}>
 			{globalError}
 			<button class="error-close" onclick={() => (globalError = null)}>✕</button>
 		</div>
 	{/if}
 
 	{#if $wrongNetwork}
-		<div class="error-banner" role="alert">
+		<div class="error-banner" role="alert" transition:fade={{ duration: 150 }}>
 			Wrong network — please switch your wallet to {pinboChain.name}.
 		</div>
 	{/if}
@@ -290,7 +291,7 @@ import { renderMarkdown } from '$lib/utils';
 			{#if pendingTxHash}
 				<div class="loading">LOADING...</div>
 			{:else if showPostForm}
-				<div class="post-section">
+				<div class="post-section" transition:slide={{ duration: 200 }}>
 					<div class="input-group">
 						<TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
 						<div class="btn-row">
@@ -319,22 +320,24 @@ import { renderMarkdown } from '$lib/utils';
 		{/if}
 
 		{#if showAbout}
-			<div class="about-section">
+			<div class="about-section" transition:fade={{ duration: 150 }}>
 				{@html aboutContent}
 			</div>
 		{:else if permalinkLoading}
-			<div class="loading">LOADING...</div>
+			<div class="loading" transition:fade={{ duration: 150 }}>LOADING...</div>
 		{:else if permalinkMessage}
-			<Message message={permalinkMessage} showPermalink={false} />
-			<div class="permalink-tx">
-				TX: <a
-					href={`https://etherscan.io/tx/${permalinkMessage.txHash}`}
-					target="_blank"
-					rel="noopener noreferrer">{permalinkMessage.txHash}</a
-				>
+			<div transition:fade={{ duration: 150 }}>
+				<Message message={permalinkMessage} showPermalink={false} />
+				<div class="permalink-tx">
+					TX: <a
+						href={`https://etherscan.io/tx/${permalinkMessage.txHash}`}
+						target="_blank"
+						rel="noopener noreferrer">{permalinkMessage.txHash}</a
+					>
 				</div>
+			</div>
 		{:else if profileAddress}
-			<div class="profile-section">
+			<div class="profile-section" transition:fade={{ duration: 150 }}>
 				<div class="profile-header">
 					Messages from <Address address={profileAddress as `0x${string}`} showFull={true} />
 				</div>
@@ -347,7 +350,7 @@ import { renderMarkdown } from '$lib/utils';
 				/>
 			</div>
 		{:else if !replyTo}
-			<div class="messages-section">
+			<div class="messages-section" transition:fade={{ duration: 150 }}>
 				<MessageList
 					{messages}
 					{loading}
