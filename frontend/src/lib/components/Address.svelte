@@ -41,7 +41,7 @@
 	}
 </script>
 
-<a href={getEtherscanLink()} class="address-link" target="_blank" rel="noopener noreferrer">
+<a href={getEtherscanLink()} class="address-link" target={href ? undefined : '_blank'} rel={href ? undefined : 'noopener noreferrer'}>
 	<img src={getBlockie()} alt="" class="blockie" />
 	{#if loading}
 		<span class="loading">0x{address.slice(2, 6)}</span>
