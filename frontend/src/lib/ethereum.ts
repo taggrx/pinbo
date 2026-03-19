@@ -26,7 +26,7 @@ export const TOPIC_TYPE = {
 type Topics = Array<[number, Uint8Array]> | null;
 
 function encodeMessage(text: string, topics: Topics = null): Uint8Array {
-	const textBytes = new TextEncoder().encode(text);
+	const textBytes = new TextEncoder().encode(text.trim());
 	const compressed = pako.deflate(textBytes, { level: 9 });
 	const messageBytes = compressed.length < textBytes.length ? compressed : textBytes;
 	const packed = msgpackEncode(

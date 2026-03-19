@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ROUTES, type Message as MessageType } from '$lib/types';
 	import Address from './Address.svelte';
-	import { renderMarkdown } from '$lib/utils';
+	import MarkdownContent from './MarkdownContent.svelte';
 	import { getMessageByTxHash, TOPIC_TYPE } from '$lib/ethereum';
 	import { bytesToHex } from 'viem';
 	import Message from './Message.svelte';
@@ -56,9 +56,24 @@
 		const txHash = bytesToHex(bytes) as `0x${string}`;
 		return getMessageByTxHash(txHash);
 	}
+
+	function handleCardClick(e: MouseEvent) {
+		if (!showPermalink) return;
+		if ((e.target as HTMLElement).closest('a, button')) return;
+		window.location.hash = ROUTES.MESSAGE(message.txHash);
+	}
+
+	async function handleShare() {
+		const url = window.location.origin + window.location.pathname + ROUTES.MESSAGE(message.txHash);
+		if (navigator.share) {
+			await navigator.share({ url });
+		} else {
+			await navigator.clipboard.writeText(url);
+		}
+	}
 </script>
 
-<div class="message card">
+<div class="message card" class:clickable={showPermalink} onclick={handleCardClick}>
 	<div class="message-header">
 		<span class="message-meta">
 			{#if showSender}
@@ -68,29 +83,15 @@
 				<span class="to-arrow">→</span>
 				<Address address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
 			{/if}
-			{#if showSender || recipientAddress}
-				<span class="middot">·</span>
-			{/if}
-			<span class="timestamp"
-				>{message.timestamp != null
-					? showPermalink
-						? formatTime(message.timestamp)
-						: new Date(message.timestamp).toLocaleString()
-					: 'BLOCK ' + message.blockNumber}</span
-			>
 		</span>
-		<span class="message-actions">
-			{#if showReply && onReply}
-				<button class="reply-btn" onclick={() => onReply(message)} title="Reply">↩</button>
-			{/if}
-			{#if showPermalink}
-				{#if showReply && onReply}<span class="middot">·</span>{/if}
-				<a href={ROUTES.MESSAGE(message.txHash)} class="permalink">#</a>
-			{/if}
-		</span>
+		<span class="timestamp"
+			>{message.timestamp != null
+				? formatTime(message.timestamp)
+				: 'BLOCK ' + message.blockNumber}</span
+		>
 	</div>
 	<div class="content-wrapper" class:truncated={truncate && !expanded} bind:this={contentEl}>
-		<div class="message-text">{@html renderMarkdown(message.message)}</div>
+		<MarkdownContent text={message.message} />
 		{#if truncate && !expanded && overflows}
 			<div class="gradient-overlay"></div>
 		{/if}
@@ -111,55 +112,50 @@
 			{/await}
 		</div>
 	{/each}
+	{#if showPermalink || (showReply && onReply)}
+		<div class="message-footer">
+			{#if showPermalink}
+				<button class="footer-action" onclick={handleShare}>SHARE</button>
+			{/if}
+			{#if showPermalink && showReply && onReply}
+				<span class="middot">·</span>
+			{/if}
+			{#if showReply && onReply}
+				<button class="footer-action" onclick={() => onReply!(message)}>REPLY</button>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
 	.message {
 		border: 1px solid var(--surface-alt);
 	}
+	.message.clickable {
+		cursor: pointer;
+	}
+	.message.clickable:hover {
+		border-color: var(--bg4);
+	}
 	.message-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 0.5rem;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 	}
 	.message-meta {
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		gap: 1rem;
+		gap: var(--sep-gap);
 	}
 	.to-arrow {
 		color: var(--text-secondary);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.timestamp {
 		color: var(--text-secondary);
 		font-family: var(--font-mono);
-	}
-	.message-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		flex-shrink: 0;
-	}
-	.permalink {
-		font-size: 1rem;
-		font-family: var(--font-mono);
-	}
-	.reply-btn {
-		background: none;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-		font-size: 1.2rem;
-		color: var(--primary);
-		font-family: var(--font-mono);
-	}
-	.reply-btn:hover {
-		text-decoration: underline;
-		text-decoration-style: dotted;
 	}
 	.content-wrapper {
 		position: relative;
@@ -187,7 +183,7 @@
 		color: var(--primary);
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		font-weight: 600;
 		padding: 0.25rem 0.5rem;
 	}
@@ -195,20 +191,38 @@
 		text-decoration: underline;
 		text-decoration-style: dotted;
 	}
-	.message-text {
-		margin: 0;
-		line-height: 1.5;
-	}
 	.repost {
-		margin-top: 0.75rem;
+		margin-top: var(--text-xs);
 		max-height: 15vh;
 		overflow-y: auto;
 		opacity: 0.8;
 	}
 	.repost-loading,
 	.repost-error {
-		font-size: 0.75rem;
+		font-size: var(--text-xs);
 		color: var(--text-secondary);
 		font-family: var(--font-mono);
+	}
+	.message-footer {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--sep-gap);
+		font-size: var(--text-xs);
+		font-family: var(--font-mono);
+	}
+	.footer-action {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-secondary);
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+	.footer-action:hover {
+		color: var(--primary);
+		text-decoration: underline;
+		text-decoration-style: dotted;
 	}
 </style>

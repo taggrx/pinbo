@@ -46,13 +46,14 @@
 	{#if loading}
 		<span class="loading">0x{address.slice(2, 6)}</span>
 	{:else}
-		{getDisplayName()}
+		<span>{getDisplayName()}</span>
 	{/if}
 </a>
 
 <style>
 	.address-link {
 		display: inline-flex;
+		flex-direction: row;
 		align-items: center;
 		gap: 0.4rem;
 		color: var(--primary);
@@ -60,8 +61,8 @@
 		font-family: var(--font-mono);
 	}
 	.blockie {
-		width: 24px;
-		height: 24px;
+		width: 18px;
+		height: 18px;
 		border-radius: 0.25rem;
 		flex-shrink: 0;
 	}

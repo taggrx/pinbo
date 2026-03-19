@@ -9,6 +9,7 @@ export interface Message {
 
 export const ROUTES = {
 	ABOUT: '#/about',
+	INBOX: '#/inbox',
 	MESSAGE: (txHash: string) => `#/p/${txHash}`,
 	PROFILE: (address: string) => `#/u/${address}`,
 } as const;

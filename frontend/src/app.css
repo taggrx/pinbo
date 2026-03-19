@@ -44,6 +44,13 @@
 
 	/* Typography */
 	--font-mono: ui-monospace, monospace;
+
+	/* Spacing */
+	--sep-gap: 0.75rem;
+
+	/* Font sizes */
+	--text-sm: 0.875rem;
+	--text-xs: 0.75rem;
 }
 
 body {
@@ -82,7 +89,7 @@ img {
 
 pre,
 code {
-	background: var(--surface);
+	background: var(--surface-alt);
 	border-radius: 0.25rem;
 	font-family: var(--font-mono);
 	font-size: 0.9em;

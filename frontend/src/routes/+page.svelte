@@ -17,22 +17,18 @@
 		getFee,
 		TOPIC_TYPE,
 	} from '$lib/ethereum';
-	import { hexToBytes, formatEther, isAddress } from 'viem';
+	import { hexToBytes, bytesToHex, formatEther, isAddress } from 'viem';
 	import { fade, slide } from 'svelte/transition';
-import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
 	import Message from '$lib/components/Message.svelte';
 	import MessageList from '$lib/components/MessageList.svelte';
+	import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 	import TuiEditor from '$lib/components/TuiEditor.svelte';
 	import { ROUTES, type Message as MessageType } from '$lib/types';
 	import { pinboChain } from '$lib/chains';
 	import readme from '../../../README.md?raw';
 
-	let aboutContent = $state('');
 
-	if (browser) {
-		aboutContent = renderMarkdown(readme);
-	}
 
 	let messages = $state<MessageType[]>([]);
 	const DRAFT_KEY = 'pinbo_draft';
@@ -61,6 +57,7 @@ import { renderMarkdown } from '$lib/utils';
 	let globalError = $state<string | null>(null);
 	let replyTo = $state<MessageType | null>(null);
 	let pendingReply = false;
+	let showInbox = $state(false);
 	let profileAddress = $state<string | null>(null);
 	let profileMessages = $state<MessageType[]>([]);
 	let profileLoading = $state(false);
@@ -68,6 +65,19 @@ import { renderMarkdown } from '$lib/utils';
 	let toAddress = $state('');
 	let toAddressLocked = $state(false);
 	const toAddressValid = $derived(toAddress.trim() === '' || isAddress(toAddress.trim()));
+
+	const inboxMessages = $derived(
+		$account
+			? messages.filter((m) =>
+					(m.topics ?? []).some(
+						([type, bytes]) =>
+							type === TOPIC_TYPE.ADDRESS &&
+							bytesToHex(bytes as Uint8Array).toLowerCase() === $account!.toLowerCase()
+					)
+				)
+			: []
+	);
+	const dmCount = $derived(inboxMessages.length);
 
 	function shortAddr(addr: string) {
 		return addr.slice(0, 6) + '…' + addr.slice(-4);
@@ -120,9 +130,13 @@ import { renderMarkdown } from '$lib/utils';
 		replyTo = null;
 		profileAddress = null;
 		profileMessages = [];
+		showInbox = false;
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
+		} else if (hash === ROUTES.INBOX) {
+			showAbout = false;
+			showInbox = true;
 		} else {
 			showAbout = false;
 			const permalinkMatch = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
@@ -268,28 +282,35 @@ import { renderMarkdown } from '$lib/utils';
 			</button>
 		</h1>
 		<div class="wallet-section">
-			<a href={ROUTES.ABOUT} class="about-link">About</a>
+			<a href={ROUTES.ABOUT} class="about-link">ABOUT</a>
 			{#if $isConnected}
 				<span class="middot">·</span>
 				<div class="connected">
-					<Address address={$account!} />
-					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
-					<button
-						class="btn post-btn"
-						onclick={profileAddress
-							? () => handleMessageTo(profileAddress!)
-							: permalinkMessage
-								? () => handleReply(permalinkMessage!)
-								: togglePostForm}
-						disabled={showAbout}
-					>{profileAddress ? 'DM' : permalinkMessage ? 'REPLY' : 'POST'}</button
-					>
+					<Address address={$account!} href={ROUTES.INBOX} />{#if dmCount > 0}<span class="dm-count">[{dmCount}]</span>{/if}
+					{#if showInbox}
+						<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
+					{:else}
+						<button
+							class="btn post-btn"
+							onclick={profileAddress
+								? () => handleMessageTo(profileAddress!)
+								: permalinkMessage
+									? () => handleReply(permalinkMessage!)
+									: togglePostForm}
+							disabled={showAbout}
+						>{profileAddress ? 'DM' : permalinkMessage ? 'REPLY' : 'POST'}</button>
+					{/if}
 				</div>
 				<button
 					class="btn post-fab"
-					onclick={togglePostForm}
-					disabled={showAbout || !!permalinkMessage || !!profileAddress}
-					style:display={showPostForm ? 'none' : ''}>+</button
+					onclick={profileAddress
+						? () => handleMessageTo(profileAddress!)
+						: permalinkMessage
+							? () => handleReply(permalinkMessage!)
+							: togglePostForm}
+					disabled={showAbout}
+					style:display={showPostForm ? 'none' : ''}
+				>{profileAddress ? '✉' : permalinkMessage ? '↩' : '+'}</button
 				>
 			{:else}
 				<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
@@ -314,7 +335,7 @@ import { renderMarkdown } from '$lib/utils';
 		{#if pendingTxHash && $isConnected}
 			<div class="loading">LOADING...</div>
 		{/if}
-		{#if $isConnected && !$wrongNetwork && !showAbout && showPostForm}
+		{#if $isConnected && !$wrongNetwork && !showAbout && showPostForm && !permalinkMessage}
 				<div class="post-section" transition:slide={{ duration: 200 }}>
 					<div class="input-group">
 						{#if toAddressLocked}
@@ -338,37 +359,65 @@ import { renderMarkdown } from '$lib/utils';
 								}}>CLOSE</button
 							>
 							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim() || !toAddressValid}>
-								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
+								{posting ? 'SENDING' : 'SEND'}
 							</button>
 						</div>
 						{#if fee !== null}
 							<div class="fee-info">Fee: {formatEther(fee)} ETH + gas</div>
 						{/if}
 					</div>
-					{#if replyTo && replyTo.txHash !== permalinkMessage?.txHash}
-						<div class="reply-to">
-							<Message message={replyTo} showPermalink={false} showReply={false} />
-						</div>
-					{/if}
 				</div>
 		{/if}
 
-		{#if showAbout}
+		{#if showInbox}
+			<div class="profile-section" in:fade={{ duration: 150 }}>
+				<h2 class="profile-header">INBOX</h2>
+				<MessageList
+					messages={inboxMessages}
+					loading={loading}
+					showSender={true}
+					emptyText="NO MESSAGES ADDRESSED TO YOU YET."
+					onReply={$isConnected ? handleReply : undefined}
+				/>
+			</div>
+		{:else if showAbout}
 			<div class="about-section" in:fade={{ duration: 150 }}>
-				{@html aboutContent}
+				<MarkdownContent text={readme} />
 			</div>
 		{:else if permalinkLoading}
 			<div class="loading" in:fade={{ duration: 150 }}>LOADING...</div>
 		{:else if permalinkMessage}
 			<div in:fade={{ duration: 150 }}>
-				<Message message={permalinkMessage} showPermalink={false} truncate={false} />
+				<Message message={permalinkMessage} showPermalink={false} showReply={false} truncate={false} />
 				<div class="permalink-tx">
-					TX: <a
+					<a
 						href={`https://etherscan.io/tx/${permalinkMessage.txHash}`}
 						target="_blank"
-						rel="noopener noreferrer">{permalinkMessage.txHash}</a
+						rel="noopener noreferrer">BLOCKCHAIN TRANSACTION</a
 					>
 				</div>
+				{#if $isConnected && !$wrongNetwork && showPostForm}
+					<div class="post-section" transition:slide={{ duration: 200 }}>
+						<div class="input-group">
+							<TuiEditor bind:value={newMessage} placeholder="Write a reply…" />
+							<div class="btn-row">
+								<button
+									class="btn btn-secondary"
+									onclick={() => {
+										resetPostForm();
+										showPostForm = false;
+									}}>CLOSE</button
+								>
+								<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
+									{posting ? 'REPLYING' : 'REPLY'}
+								</button>
+							</div>
+							{#if fee !== null}
+								<div class="fee-info">Fee: {formatEther(fee)} ETH + gas</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
 			</div>
 		{:else if profileAddress}
 			<div class="profile-section" in:fade={{ duration: 150 }}>
@@ -398,15 +447,13 @@ import { renderMarkdown } from '$lib/utils';
 		{/if}
 	</main>
 	<footer class="footer">
-		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a> &middot;
-		<a
-			href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`}
-			target="_blank"
-			rel="noopener noreferrer">Contract</a
-		>
-		&middot;
+		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a>
+		<span class="middot">·</span>
+		<a href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer">Contract</a>
+		<span class="middot">·</span>
 		<a href="https://github.com/taggrx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
-		&middot; {__GIT_TAG__}
+		<span class="middot">·</span>
+		<span>{__GIT_TAG__}</span>
 	</footer>
 </div>
 
@@ -436,6 +483,7 @@ import { renderMarkdown } from '$lib/utils';
 		padding: 0;
 		cursor: pointer;
 		font: inherit;
+		line-height: 1;
 	}
 	.logo button:hover {
 		opacity: 0.8;
@@ -443,24 +491,30 @@ import { renderMarkdown } from '$lib/utils';
 	.wallet-section {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--sep-gap);
 	}
 	.connected {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.95rem;
+		gap: var(--sep-gap);
+		font-size: var(--text-sm);
+	}
+	.dm-count {
+		color: var(--text-secondary);
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
 	}
 	.about-link {
 		color: var(--text-secondary);
 		text-decoration: none;
+		font-size: var(--text-sm);
 	}
 	.about-link:hover {
 		color: var(--primary);
 	}
 	.post-btn {
 		margin-left: 0.5rem;
-		min-width: 4.5rem;
+		min-width: 5.5rem;
 		text-align: center;
 	}
 	.post-fab {
@@ -493,40 +547,31 @@ import { renderMarkdown } from '$lib/utils';
 			cursor: not-allowed;
 		}
 	}
-	.btn-icon {
-		background: none;
-		border: none;
-		color: var(--text-secondary);
-		cursor: pointer;
-		font-size: 1rem;
-		padding: 0.25rem;
-		margin-left: 0.25rem;
-	}
-	.btn-icon:hover {
-		color: var(--error);
-	}
 	.btn.connect,
 	.btn.post-btn {
 		background-color: var(--secondary);
-		margin-left: 1rem;
+	}
+	.btn.btn-logout {
+		background-color: var(--error);
+		color: var(--bg0);
 	}
 	.error-banner {
 		background: var(--bg-red);
 		color: var(--error);
-		padding: 0.75rem 1rem;
+		padding: var(--text-xs) 1rem;
 		border-radius: 0.375rem;
 		margin-bottom: 1rem;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 	}
 	.error-close {
 		background: none;
 		border: none;
 		color: var(--error);
 		cursor: pointer;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 		padding: 0 0.25rem;
 	}
 	.post-section {
@@ -559,11 +604,11 @@ import { renderMarkdown } from '$lib/utils';
 	.to-field {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--text-xs);
 	}
 	.to-label {
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		font-weight: 600;
 		color: var(--text-secondary);
 		flex-shrink: 0;
@@ -575,7 +620,7 @@ import { renderMarkdown } from '$lib/utils';
 		border-radius: 0.375rem;
 		color: var(--text);
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		padding: 0.375rem 0.625rem;
 		outline: none;
 	}
@@ -586,7 +631,7 @@ import { renderMarkdown } from '$lib/utils';
 		border-color: var(--error);
 	}
 	.fee-info {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		color: var(--text-secondary);
 		font-family: var(--font-mono);
 		text-align: right;
@@ -602,8 +647,8 @@ import { renderMarkdown } from '$lib/utils';
 	}
 	.permalink-tx {
 		text-align: center;
-		margin-top: 2rem;
-		font-size: 0.75rem;
+		margin: 2rem 0 1rem;
+		font-size: var(--text-xs);
 		font-family: var(--font-mono);
 		color: var(--text-secondary);
 		word-break: break-all;
@@ -616,14 +661,17 @@ import { renderMarkdown } from '$lib/utils';
 		font-size: 1.1rem;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: 0.5rem;
 	}
 	.footer {
 		margin-top: 4rem;
 		padding: 1rem 0;
 		border-top: 1px solid var(--surface-alt);
 		background: var(--background);
-		text-align: center;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: var(--sep-gap);
 		font-size: 0.65rem;
 		color: var(--text-secondary);
 	}
