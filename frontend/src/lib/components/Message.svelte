@@ -33,6 +33,8 @@
 	});
 
 	const reposts = $derived((message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST));
+	const recipientBytes = $derived((message.topics ?? []).find(([type]) => type === TOPIC_TYPE.ADDRESS)?.[1] ?? null);
+	const recipientAddress = $derived(recipientBytes ? bytesToHex(recipientBytes) as `0x${string}` : null);
 
 	function formatTime(timestamp: number) {
 		const now = Date.now();
@@ -61,6 +63,12 @@
 		<span class="message-meta">
 			{#if showSender}
 				<Address address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
+			{/if}
+			{#if recipientAddress}
+				<span class="to-arrow">→</span>
+				<Address address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
+			{/if}
+			{#if showSender || recipientAddress}
 				<span class="middot">·</span>
 			{/if}
 			<span class="timestamp"
@@ -120,6 +128,11 @@
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
+		gap: 1rem;
+	}
+	.to-arrow {
+		color: var(--text-secondary);
+		font-size: 0.85rem;
 	}
 	.timestamp {
 		color: var(--text-secondary);

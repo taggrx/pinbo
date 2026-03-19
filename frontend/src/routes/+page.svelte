@@ -17,7 +17,7 @@
 		getFee,
 		TOPIC_TYPE,
 	} from '$lib/ethereum';
-	import { hexToBytes, formatEther } from 'viem';
+	import { hexToBytes, formatEther, isAddress } from 'viem';
 	import { fade, slide } from 'svelte/transition';
 import { renderMarkdown } from '$lib/utils';
 	import Address from '$lib/components/Address.svelte';
@@ -64,6 +64,9 @@ import { renderMarkdown } from '$lib/utils';
 	let profileMessages = $state<MessageType[]>([]);
 	let profileLoading = $state(false);
 	let fee = $state<bigint | null>(null);
+	let toAddress = $state('');
+	let toAddressLocked = $state(false);
+	const toAddressValid = $derived(toAddress.trim() === '' || isAddress(toAddress.trim()));
 
 	const rpcUrlFull = import.meta.env.VITE_RPC_URL;
 
@@ -79,7 +82,18 @@ import { renderMarkdown } from '$lib/utils';
 
 	function togglePostForm() {
 		showPostForm = !showPostForm;
-		if (!showPostForm) replyTo = null;
+		if (!showPostForm) {
+			replyTo = null;
+			toAddress = '';
+			toAddressLocked = false;
+		}
+	}
+
+	function handleMessageTo(address: string) {
+		toAddress = address;
+		toAddressLocked = true;
+		showPostForm = true;
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	function handleReply(message: MessageType) {
@@ -190,13 +204,16 @@ import { renderMarkdown } from '$lib/utils';
 		posting = true;
 		globalError = null;
 		try {
-			const topics: Array<[number, Uint8Array]> | null = replyTo
-				? [[TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]]
-				: null;
-			const txHash = await postMessage(newMessage.trim(), topics);
+			const topics: Array<[number, Uint8Array]> = [];
+		if (replyTo) topics.push([TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]);
+		if (toAddress.trim() && isAddress(toAddress.trim())) topics.push([TOPIC_TYPE.ADDRESS, hexToBytes(toAddress.trim() as `0x${string}`)]);
+		const topicsOrNull = topics.length ? topics : null;
+			const txHash = await postMessage(newMessage.trim(), topicsOrNull);
 			pendingTxHash = txHash;
 			newMessage = '';
 			replyTo = null;
+			toAddress = '';
+			toAddressLocked = false;
 			localStorage.removeItem(DRAFT_KEY);
 			showPostForm = false;
 			const message = await waitForMessage(txHash);
@@ -247,8 +264,9 @@ import { renderMarkdown } from '$lib/utils';
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
 					<button
 						class="btn post-btn"
-						onclick={togglePostForm}
-						disabled={showAbout || !!permalinkMessage || !!profileAddress}>POST</button
+						onclick={profileAddress ? () => handleMessageTo(profileAddress!) : togglePostForm}
+						disabled={showAbout || !!permalinkMessage}
+					>{profileAddress ? 'DM' : 'POST'}</button
 					>
 				</div>
 				<button
@@ -277,22 +295,35 @@ import { renderMarkdown } from '$lib/utils';
 	{/if}
 
 	<main>
-		{#if $isConnected && !$wrongNetwork && !permalinkMessage && !showAbout && !profileAddress}
-			{#if pendingTxHash}
-				<div class="loading">LOADING...</div>
-			{:else if showPostForm}
+		{#if pendingTxHash && $isConnected}
+			<div class="loading">LOADING...</div>
+		{/if}
+		{#if $isConnected && !$wrongNetwork && !permalinkMessage && !showAbout && showPostForm}
 				<div class="post-section" transition:slide={{ duration: 200 }}>
 					<div class="input-group">
+						{#if toAddressLocked}
+							<div class="to-field">
+								<span class="to-label">TO:</span>
+								<input
+									class="to-input"
+									value={toAddress}
+									disabled
+									spellcheck="false"
+								/>
+							</div>
+						{/if}
 						<TuiEditor bind:value={newMessage} placeholder="What's on your mind?" />
 						<div class="btn-row">
 							<button
 								class="btn btn-secondary"
 								onclick={() => {
 									replyTo = null;
+									toAddress = '';
+									toAddressLocked = false;
 									showPostForm = false;
 								}}>CLOSE</button
 							>
-							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim()}>
+							<button class="btn" onclick={handlePost} disabled={posting || !newMessage.trim() || !toAddressValid}>
 								{posting ? 'SENDING' : replyTo ? 'REPLY' : 'SEND'}
 							</button>
 						</div>
@@ -306,7 +337,6 @@ import { renderMarkdown } from '$lib/utils';
 						</div>
 					{/if}
 				</div>
-			{/if}
 		{/if}
 
 		{#if showAbout}
@@ -329,7 +359,7 @@ import { renderMarkdown } from '$lib/utils';
 		{:else if profileAddress}
 			<div class="profile-section" in:fade={{ duration: 150 }}>
 				<div class="profile-header">
-					Messages from <Address address={profileAddress as `0x${string}`} showFull={true} />
+					<Address address={profileAddress as `0x${string}`} showFull={true} />
 				</div>
 				<MessageList
 					messages={profileMessages}
@@ -416,6 +446,8 @@ import { renderMarkdown } from '$lib/utils';
 	}
 	.post-btn {
 		margin-left: 0.5rem;
+		min-width: 4.5rem;
+		text-align: center;
 	}
 	.post-fab {
 		display: none;
@@ -509,6 +541,35 @@ import { renderMarkdown } from '$lib/utils';
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+	}
+	.to-field {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+	.to-label {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		flex-shrink: 0;
+	}
+	.to-input {
+		flex: 1;
+		background: var(--bg2);
+		border: 1px solid var(--surface-alt);
+		border-radius: 0.375rem;
+		color: var(--text);
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		padding: 0.375rem 0.625rem;
+		outline: none;
+	}
+	.to-input:focus {
+		border-color: var(--primary);
+	}
+	.to-input.invalid {
+		border-color: var(--error);
 	}
 	.fee-info {
 		font-size: 0.8rem;
