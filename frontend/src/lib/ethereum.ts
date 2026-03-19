@@ -38,25 +38,21 @@ function encodeMessage(text: string, topics: Topics = null): Uint8Array {
 	return result;
 }
 
+function inflateOrDecode(bytes: Uint8Array): string {
+	try {
+		return pako.inflate(bytes, { to: 'string' });
+	} catch {
+		return new TextDecoder().decode(bytes);
+	}
+}
+
 function decodeMessage(data: Uint8Array): { message: string; topics: Topics } {
 	if (data[0] === VERSION_BYTE) {
 		const unpacked = msgpackDecode(data.slice(1)) as { message: Uint8Array; topics: Topics };
-		let text: string;
-		try {
-			text = pako.inflate(unpacked.message, { to: 'string' });
-		} catch {
-			text = new TextDecoder().decode(unpacked.message);
-		}
-		return { message: text, topics: unpacked.topics ?? null };
+		return { message: inflateOrDecode(unpacked.message), topics: unpacked.topics ?? null };
 	}
 	// Legacy: plain bytes or pako-compressed text
-	let text: string;
-	try {
-		text = pako.inflate(data, { to: 'string' });
-	} catch {
-		text = new TextDecoder().decode(data);
-	}
-	return { message: text, topics: null };
+	return { message: inflateOrDecode(data), topics: null };
 }
 
 export const account = writable<`0x${string}` | null>(null);
@@ -80,11 +76,13 @@ export async function resolveEns(address: `0x${string}`): Promise<string | null>
 	}
 }
 
+const publicClient = createPublicClient({
+	chain: pinboChain,
+	transport: http(import.meta.env.VITE_RPC_URL),
+});
+
 function getPublicClient() {
-	return createPublicClient({
-		chain: pinboChain,
-		transport: http(import.meta.env.VITE_RPC_URL),
-	});
+	return publicClient;
 }
 
 export async function getFee(): Promise<bigint> {

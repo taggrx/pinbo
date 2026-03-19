@@ -22,7 +22,7 @@
 	let overflows = $state(false);
 
 	$effect(() => {
-		if (!contentEl || !truncate) return;
+		if (!contentEl || !truncate || expanded) return;
 		const check = () => {
 			overflows = contentEl!.scrollHeight > contentEl!.clientHeight + 1;
 		};

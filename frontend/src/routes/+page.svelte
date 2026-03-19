@@ -50,7 +50,7 @@ import { renderMarkdown } from '$lib/utils';
 	let pendingTxHash = $state<string | null>(null);
 	let loading = $state(true);
 	let unwatch: (() => void) | null = null;
-	let unwatchWallet: () => void = () => {};
+	let unwatchWallet: (() => void) | null = null;
 	let permalinkMessage = $state<MessageType | null>(null);
 	let permalinkLoading = $state(false);
 	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
@@ -68,7 +68,9 @@ import { renderMarkdown } from '$lib/utils';
 	let toAddressLocked = $state(false);
 	const toAddressValid = $derived(toAddress.trim() === '' || isAddress(toAddress.trim()));
 
-	const rpcUrlFull = import.meta.env.VITE_RPC_URL;
+	function shortAddr(addr: string) {
+		return addr.slice(0, 6) + '…' + addr.slice(-4);
+	}
 
 	$effect(() => {
 		if (showPostForm) {
@@ -80,13 +82,15 @@ import { renderMarkdown } from '$lib/utils';
 		}
 	});
 
+	function resetPostForm() {
+		replyTo = null;
+		toAddress = '';
+		toAddressLocked = false;
+	}
+
 	function togglePostForm() {
 		showPostForm = !showPostForm;
-		if (!showPostForm) {
-			replyTo = null;
-			toAddress = '';
-			toAddressLocked = false;
-		}
+		if (!showPostForm) resetPostForm();
 	}
 
 	function handleMessageTo(address: string) {
@@ -179,7 +183,7 @@ import { renderMarkdown } from '$lib/utils';
 
 	onDestroy(() => {
 		if (unwatch) unwatch();
-		unwatchWallet();
+		if (unwatchWallet) unwatchWallet();
 		if (browser) {
 			window.removeEventListener('hashchange', handleHashChange);
 		}
@@ -208,13 +212,11 @@ import { renderMarkdown } from '$lib/utils';
 		if (replyTo) topics.push([TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]);
 		if (toAddress.trim() && isAddress(toAddress.trim())) topics.push([TOPIC_TYPE.ADDRESS, hexToBytes(toAddress.trim() as `0x${string}`)]);
 		const topicsOrNull = topics.length ? topics : null;
-			const txHash = await postMessage(newMessage.trim(), topicsOrNull);
-			pendingTxHash = txHash;
-			newMessage = '';
-			replyTo = null;
-			toAddress = '';
-			toAddressLocked = false;
-			localStorage.removeItem(DRAFT_KEY);
+		const txHash = await postMessage(newMessage.trim(), topicsOrNull);
+		pendingTxHash = txHash;
+		newMessage = '';
+		resetPostForm();
+		localStorage.removeItem(DRAFT_KEY);
 			showPostForm = false;
 			const message = await waitForMessage(txHash);
 			if (!messages.some((m) => m.txHash === message.txHash)) {
@@ -234,14 +236,11 @@ import { renderMarkdown } from '$lib/utils';
 
 <svelte:head>
 	{#if permalinkMessage}
-		<title>Pinbo — {permalinkMessage.sender.slice(0, 6)}…{permalinkMessage.sender.slice(-4)}</title>
-		<meta
-			property="og:title"
-			content="Pinbo — {permalinkMessage.sender.slice(0, 6)}…{permalinkMessage.sender.slice(-4)}"
-		/>
+		<title>Pinbo — {shortAddr(permalinkMessage.sender)}</title>
+		<meta property="og:title" content="Pinbo — {shortAddr(permalinkMessage.sender)}" />
 		<meta property="og:description" content={permalinkMessage.message.slice(0, 200)} />
 	{:else if profileAddress}
-		<title>Pinbo — {profileAddress.slice(0, 6)}…{profileAddress.slice(-4)}</title>
+		<title>Pinbo — {shortAddr(profileAddress)}</title>
 	{:else}
 		<title>Pinbo</title>
 	{/if}
@@ -317,9 +316,7 @@ import { renderMarkdown } from '$lib/utils';
 							<button
 								class="btn btn-secondary"
 								onclick={() => {
-									replyTo = null;
-									toAddress = '';
-									toAddressLocked = false;
+									resetPostForm();
 									showPostForm = false;
 								}}>CLOSE</button
 							>
@@ -384,7 +381,7 @@ import { renderMarkdown } from '$lib/utils';
 		{/if}
 	</main>
 	<footer class="footer">
-		<a href={rpcUrlFull} target="_blank" rel="noopener noreferrer">RPC</a> &middot;
+		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a> &middot;
 		<a
 			href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`}
 			target="_blank"
