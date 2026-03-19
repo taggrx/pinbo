@@ -113,10 +113,12 @@ const MESSAGE_EVENT = parseAbiItem(
 	'event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'
 );
 
+const messageCache = new Map<string, Message>();
+
 function logToMessage(log: any): Message {
 	const data = hexToBytes(log.args.message as `0x${string}`);
 	const { message, topics } = decodeMessage(data);
-	return {
+	const msg: Message = {
 		sender: log.args.sender as `0x${string}`,
 		message,
 		topics,
@@ -124,6 +126,8 @@ function logToMessage(log: any): Message {
 		blockNumber: log.blockNumber,
 		txHash: log.transactionHash,
 	};
+	messageCache.set(msg.txHash, msg);
+	return msg;
 }
 
 async function fetchLogsInRange(
@@ -284,6 +288,7 @@ export async function waitForMessage(txHash: `0x${string}`) {
 }
 
 export async function getMessageByTxHash(txHash: `0x${string}`) {
+	if (messageCache.has(txHash)) return messageCache.get(txHash)!;
 	const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
 	const log = receipt.logs.find(
 		(l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase()
@@ -294,7 +299,7 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 	const decoded = decodeEventLog({ abi: pinboAbi, data: log.data, topics: log.topics });
 	const { message, topics } = decodeMessage(hexToBytes(decoded.args.message as `0x${string}`));
 
-	return {
+	const msg: Message = {
 		sender: decoded.args.sender as `0x${string}`,
 		message,
 		topics,
@@ -302,4 +307,6 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 		blockNumber: log.blockNumber,
 		txHash: log.transactionHash,
 	};
+	messageCache.set(txHash, msg);
+	return msg;
 }
