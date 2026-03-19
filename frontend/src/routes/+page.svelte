@@ -60,6 +60,7 @@ import { renderMarkdown } from '$lib/utils';
 	let showAbout = $state(false);
 	let globalError = $state<string | null>(null);
 	let replyTo = $state<MessageType | null>(null);
+	let pendingReply = false;
 	let profileAddress = $state<string | null>(null);
 	let profileMessages = $state<MessageType[]>([]);
 	let profileLoading = $state(false);
@@ -71,16 +72,6 @@ import { renderMarkdown } from '$lib/utils';
 	function shortAddr(addr: string) {
 		return addr.slice(0, 6) + '…' + addr.slice(-4);
 	}
-
-	$effect(() => {
-		if (showPostForm) {
-			getFee()
-				.then((f) => (fee = f))
-				.catch(() => {});
-		} else {
-			fee = null;
-		}
-	});
 
 	function resetPostForm() {
 		replyTo = null;
@@ -94,6 +85,11 @@ import { renderMarkdown } from '$lib/utils';
 	}
 
 	function handleMessageTo(address: string) {
+		if (showPostForm) {
+			showPostForm = false;
+			resetPostForm();
+			return;
+		}
 		toAddress = address;
 		toAddressLocked = true;
 		showPostForm = true;
@@ -101,9 +97,19 @@ import { renderMarkdown } from '$lib/utils';
 	}
 
 	function handleReply(message: MessageType) {
-		replyTo = message;
-		showPostForm = true;
-		window.scrollTo({ top: 0, behavior: 'smooth' });
+		if (permalinkMessage?.txHash === message.txHash) {
+			if (showPostForm) {
+				showPostForm = false;
+				resetPostForm();
+				return;
+			}
+			replyTo = message;
+			showPostForm = true;
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		} else {
+			pendingReply = true;
+			window.location.hash = ROUTES.MESSAGE(message.txHash);
+		}
 	}
 
 
@@ -127,6 +133,12 @@ import { renderMarkdown } from '$lib/utils';
 				permalinkLoading = true;
 				try {
 					permalinkMessage = await getMessageByTxHash(permalinkMatch[1] as `0x${string}`);
+					if (pendingReply && permalinkMessage) {
+						pendingReply = false;
+						replyTo = permalinkMessage;
+						showPostForm = true;
+						window.scrollTo({ top: 0, behavior: 'smooth' });
+					}
 				} catch {
 					permalinkMessage = null;
 				} finally {
@@ -158,6 +170,7 @@ import { renderMarkdown } from '$lib/utils';
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
 		messageLoader = createMessageLoader();
+		getFee().then((f) => (fee = f)).catch(() => {});
 		try {
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
 				if (messages.length === 0) {
@@ -263,9 +276,13 @@ import { renderMarkdown } from '$lib/utils';
 					<button class="btn-icon" onclick={disconnect} title="Disconnect">⏻</button>
 					<button
 						class="btn post-btn"
-						onclick={profileAddress ? () => handleMessageTo(profileAddress!) : togglePostForm}
-						disabled={showAbout || !!permalinkMessage}
-					>{profileAddress ? 'DM' : 'POST'}</button
+						onclick={profileAddress
+							? () => handleMessageTo(profileAddress!)
+							: permalinkMessage
+								? () => handleReply(permalinkMessage!)
+								: togglePostForm}
+						disabled={showAbout}
+					>{profileAddress ? 'DM' : permalinkMessage ? 'REPLY' : 'POST'}</button
 					>
 				</div>
 				<button
@@ -297,7 +314,7 @@ import { renderMarkdown } from '$lib/utils';
 		{#if pendingTxHash && $isConnected}
 			<div class="loading">LOADING...</div>
 		{/if}
-		{#if $isConnected && !$wrongNetwork && !permalinkMessage && !showAbout && showPostForm}
+		{#if $isConnected && !$wrongNetwork && !showAbout && showPostForm}
 				<div class="post-section" transition:slide={{ duration: 200 }}>
 					<div class="input-group">
 						{#if toAddressLocked}
@@ -328,7 +345,7 @@ import { renderMarkdown } from '$lib/utils';
 							<div class="fee-info">Fee: {formatEther(fee)} ETH + gas</div>
 						{/if}
 					</div>
-					{#if replyTo}
+					{#if replyTo && replyTo.txHash !== permalinkMessage?.txHash}
 						<div class="reply-to">
 							<Message message={replyTo} showPermalink={false} showReply={false} />
 						</div>
