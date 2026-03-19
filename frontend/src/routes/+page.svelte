@@ -317,7 +317,7 @@ import { renderMarkdown } from '$lib/utils';
 			<div class="loading" in:fade={{ duration: 150 }}>LOADING...</div>
 		{:else if permalinkMessage}
 			<div in:fade={{ duration: 150 }}>
-				<Message message={permalinkMessage} showPermalink={false} />
+				<Message message={permalinkMessage} showPermalink={false} truncate={false} />
 				<div class="permalink-tx">
 					TX: <a
 						href={`https://etherscan.io/tx/${permalinkMessage.txHash}`}

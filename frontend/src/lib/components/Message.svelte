@@ -11,10 +11,26 @@
 		showPermalink?: boolean;
 		showReply?: boolean;
 		showSender?: boolean;
+		truncate?: boolean;
 		onReply?: (message: MessageType) => void;
 	}
 
-	let { message, showPermalink = true, showReply = true, showSender = true, onReply }: Props = $props();
+	let { message, showPermalink = true, showReply = true, showSender = true, truncate = true, onReply }: Props = $props();
+
+	let contentEl = $state<HTMLElement | null>(null);
+	let expanded = $state(false);
+	let overflows = $state(false);
+
+	$effect(() => {
+		if (!contentEl || !truncate) return;
+		const check = () => {
+			overflows = contentEl!.scrollHeight > contentEl!.clientHeight + 1;
+		};
+		check();
+		const observer = new ResizeObserver(check);
+		observer.observe(contentEl);
+		return () => observer.disconnect();
+	});
 
 	const reposts = $derived((message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST));
 
@@ -65,13 +81,23 @@
 			{/if}
 		</span>
 	</div>
-	<div class="message-text">{@html renderMarkdown(message.message)}</div>
+	<div class="content-wrapper" class:truncated={truncate && !expanded} bind:this={contentEl}>
+		<div class="message-text">{@html renderMarkdown(message.message)}</div>
+		{#if truncate && !expanded && overflows}
+			<div class="gradient-overlay"></div>
+		{/if}
+	</div>
+	{#if truncate && !expanded && overflows}
+		<div class="read-more">
+			<button onclick={() => (expanded = true)}>MORE</button>
+		</div>
+	{/if}
 	{#each reposts as [, bytes]}
 		<div class="repost">
 			{#await fetchRepost(bytes)}
 				<div class="repost-loading">loading repost…</div>
 			{:then reposted}
-				<Message message={reposted} showPermalink={false} showReply={false} />
+				<Message message={reposted} showPermalink={false} showReply={false} truncate={false} />
 			{:catch}
 				<div class="repost-error">repost not found</div>
 			{/await}
@@ -119,6 +145,40 @@
 		font-family: var(--font-mono);
 	}
 	.reply-btn:hover {
+		text-decoration: underline;
+		text-decoration-style: dotted;
+	}
+	.content-wrapper {
+		position: relative;
+	}
+	.content-wrapper.truncated {
+		max-height: 100vh;
+		overflow: hidden;
+	}
+	.gradient-overlay {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 4rem;
+		background: linear-gradient(transparent, var(--surface));
+		pointer-events: none;
+	}
+	.read-more {
+		text-align: center;
+		margin-top: 0.5rem;
+	}
+	.read-more button {
+		background: none;
+		border: none;
+		color: var(--primary);
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		font-weight: 600;
+		padding: 0.25rem 0.5rem;
+	}
+	.read-more button:hover {
 		text-decoration: underline;
 		text-decoration-style: dotted;
 	}
