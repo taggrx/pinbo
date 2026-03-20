@@ -1,7 +1,7 @@
 # PINBO: a public pin board
 
 Pinbo is a simple public pinboard that uses **exclusively** Ethereum infrastructure to operate.
-It is based on a smart contract with immutable logic and an [immutable frontend](https://github.com/taggrx/pinbo/releases) deployed to IPFS.
+It is based on a smart contract with immutable logic and an [immutable frontend](https://github.com/xqxpx/pinbo/releases) deployed to IPFS.
 Pinbo messages are fully _immutable and censorship-resistant_, as they are stored on Ethereum nodes and cannot be altered or deleted.
 Pinbo only requires ETH token to post.
 

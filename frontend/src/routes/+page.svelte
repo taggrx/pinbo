@@ -401,7 +401,7 @@
 		<span class="middot">·</span>
 		<a href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer">Contract</a>
 		<span class="middot">·</span>
-		<a href="https://github.com/taggrx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
+		<a href="https://github.com/xqxpx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
 		<span class="middot">·</span>
 		<span>{__GIT_TAG__}</span>
 	</footer>
