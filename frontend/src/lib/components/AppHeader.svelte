@@ -89,6 +89,8 @@
 		color: var(--orange);
 		margin: 0;
 		font-family: system-ui, sans-serif;
+		display: flex;
+		align-items: center;
 	}
 	.logo button {
 		display: inline-flex;
