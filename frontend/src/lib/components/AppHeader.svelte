@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { connect, disconnect } from '$lib/ethereum';
 	import { ROUTES, type Message } from '$lib/types';
-	import Address from './Address.svelte';
+	import UserBadge from './UserBadge.svelte';
 
 	interface Props {
 		isConnected: boolean;
@@ -56,7 +56,7 @@
 				{#if showLogout}
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
 				{:else}
-					<Address address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<span class="middot">·</span><a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
+					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<span class="middot">·</span><a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
 					<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
 						{actionLabel}
 					</button>

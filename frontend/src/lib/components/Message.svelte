@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ROUTES, type Message as MessageType } from '$lib/types';
-	import Address from './Address.svelte';
+	import UserBadge from './UserBadge.svelte';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import { getMessageByTxHash, TOPIC_TYPE } from '$lib/ethereum';
 	import { bytesToHex } from 'viem';
@@ -75,10 +75,10 @@
 <div class="message card" class:clickable={showPermalink} onclick={handleCardClick}>
 	<div class="message-header">
 		<span class="message-meta">
-				<Address address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
+				<UserBadge address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
 			{#if recipientAddress}
 				<span class="to-arrow">→</span>
-				<Address address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
+				<UserBadge address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
 			{/if}
 		</span>
 		<span class="timestamp"

@@ -2,7 +2,7 @@
 	import { fade } from 'svelte/transition';
 	import { type Message, ROUTES } from '$lib/types';
 	import { type AddressInfo } from '$lib/ethereum';
-	import Address from './Address.svelte';
+	import UserBadge from './UserBadge.svelte';
 	import MessageList from './MessageList.svelte';
 
 	interface Props {
@@ -30,7 +30,7 @@
 			{#if info}
 				<span class="kind">{info.isContract ? 'CONTRACT' : 'USER'}</span>
 			{/if}
-			<Address address={address as `0x${string}`} showFull={true} />
+			<UserBadge address={address as `0x${string}`} showFull={true} />
 			{#if info?.isContract && (info.name || info.symbol)}
 				<span class="contract-name">
 					{[info.name, info.symbol ? `(${info.symbol})` : ''].filter(Boolean).join(' ')}

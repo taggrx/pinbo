@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import { type Message } from '$lib/types';
-	import Address from './Address.svelte';
+	import UserBadge from './UserBadge.svelte';
 	import MessageList from './MessageList.svelte';
 
 	interface Props {
@@ -21,7 +21,7 @@
 		{#if isOwn}
 			<span>YOUR INBOX</span>
 		{:else}
-			<span>INBOX OF<Address address={address as `0x${string}`} showFull={true} /></span>
+			<span>INBOX OF<UserBadge address={address as `0x${string}`} showFull={true} /></span>
 		{/if}
 	</div>
 	<MessageList

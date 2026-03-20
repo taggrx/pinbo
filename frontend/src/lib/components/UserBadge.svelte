@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolveEns } from '$lib/ethereum';
+	import { resolveEnsInfo } from '$lib/ethereum';
 	import { create as makeBlockie } from 'blockies-ts';
 
 	interface Props {
@@ -11,17 +11,20 @@
 	let { address, showFull = false, href }: Props = $props();
 
 	let ensName = $state<string | null>(null);
+	let ensAvatar = $state<string | null>(null);
 	let loading = $state(true);
 
 	$effect(() => {
 		loading = true;
-		resolveEns(address as `0x${string}`)
-			.then((name) => {
+		ensName = null;
+		ensAvatar = null;
+		resolveEnsInfo(address as `0x${string}`)
+			.then(({ name, avatar }) => {
 				ensName = name;
+				ensAvatar = avatar;
 				loading = false;
 			})
 			.catch(() => {
-				ensName = null;
 				loading = false;
 			});
 	});
@@ -42,7 +45,7 @@
 </script>
 
 <a href={getEtherscanLink()} class="address-link" target={href ? undefined : '_blank'} rel={href ? undefined : 'noopener noreferrer'}>
-	<img src={getBlockie()} alt="" class="blockie" />
+	<img src={ensAvatar ?? getBlockie()} alt="" class="blockie" />
 	{#if loading}
 		<span class="loading">0x{address.slice(2, 6)}</span>
 	{:else}
@@ -65,6 +68,7 @@
 		height: 18px;
 		border-radius: 0.25rem;
 		flex-shrink: 0;
+		outline: 1px solid var(--background);
 	}
 	.address-link:hover {
 		text-decoration: underline;

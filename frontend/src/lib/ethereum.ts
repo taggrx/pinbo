@@ -62,20 +62,41 @@ export const isConnected = writable(false);
 export const wrongNetwork = writable(false);
 
 const ensCache = new Map<string, string | null>();
+const ensAvatarCache = new Map<string, string | null>();
 
-export async function resolveEns(address: `0x${string}`): Promise<string | null> {
+function getEnsClient() {
 	const ensRpc = import.meta.env.VITE_ENS_RPC;
 	if (!ensRpc) return null;
-	if (ensCache.has(address)) return ensCache.get(address) || null;
-	try {
-		const client = createPublicClient({ chain: mainnet, transport: http(ensRpc) });
-		const ensName = await client.getEnsName({ address });
-		ensCache.set(address, ensName || null);
-		return ensName;
-	} catch {
-		ensCache.set(address, null);
-		return null;
+	return createPublicClient({ chain: mainnet, transport: http(ensRpc) });
+}
+
+export async function resolveEnsInfo(address: `0x${string}`): Promise<{ name: string | null; avatar: string | null }> {
+	const client = getEnsClient();
+	if (!client) return { name: null, avatar: null };
+	let name: string | null;
+	if (ensCache.has(address)) {
+		name = ensCache.get(address) ?? null;
+	} else {
+		try {
+			name = await client.getEnsName({ address }) ?? null;
+		} catch {
+			name = null;
+		}
+		ensCache.set(address, name);
 	}
+	if (!name) return { name: null, avatar: null };
+	let avatar: string | null;
+	if (ensAvatarCache.has(name)) {
+		avatar = ensAvatarCache.get(name) ?? null;
+	} else {
+		try {
+			avatar = await client.getEnsAvatar({ name }) ?? null;
+		} catch {
+			avatar = null;
+		}
+		ensAvatarCache.set(name, avatar);
+	}
+	return { name, avatar };
 }
 
 const LS_RPC_KEY = 'pinbo_rpc';
