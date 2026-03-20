@@ -143,6 +143,13 @@ export async function getFee(): Promise<bigint> {
 	})) as bigint;
 }
 
+
+const CONTRACT_DEPLOY_BLOCK = import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK
+	? BigInt(import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK)
+	: 0n;
+
+const PAGE_SIZE = 1000n;
+
 async function getLatestMessageBlock(): Promise<bigint> {
 	return (await getPublicClient().readContract({
 		address: pinboContractAddress,
@@ -152,11 +159,11 @@ async function getLatestMessageBlock(): Promise<bigint> {
 	})) as bigint;
 }
 
-const CONTRACT_DEPLOY_BLOCK = import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK
-	? BigInt(import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK)
-	: 0n;
+let cachedLatestBlock: bigint = 0n;
 
-const PAGE_SIZE = 1000n;
+export async function refreshLatestBlock(): Promise<void> {
+	cachedLatestBlock = await getLatestMessageBlock();
+}
 
 const MESSAGE_EVENT = parseAbiItem(
 	'event MessagePosted(address indexed sender, bytes message, uint256 timestamp)'
@@ -230,8 +237,7 @@ export function createMessageLoader() {
 		targetCount = 50,
 		onPage?: (pageMessages: Message[]) => void
 	): Promise<{ messages: Message[]; hasMore: boolean }> {
-		const latestBlock = await getLatestMessageBlock();
-		const startBlock = latestBlock > 0n ? latestBlock : await getPublicClient().getBlockNumber();
+		const startBlock = cachedLatestBlock;
 
 		const { messages, nextBlock } = await fetchPages(startBlock, CONTRACT_DEPLOY_BLOCK, targetCount, undefined, onPage);
 		oldestBlockQueried = nextBlock;
@@ -262,7 +268,7 @@ export async function getInboxMessages(
 	onPage?: (messages: Message[]) => void
 ): Promise<Message[]> {
 	const client = getPublicClient();
-	let currentBlock = await client.getBlockNumber();
+	let currentBlock = cachedLatestBlock;
 	const collected: Message[] = [];
 	while (currentBlock > CONTRACT_DEPLOY_BLOCK) {
 		const pageFrom = currentBlock - PAGE_SIZE > CONTRACT_DEPLOY_BLOCK ? currentBlock - PAGE_SIZE : CONTRACT_DEPLOY_BLOCK;
@@ -296,8 +302,7 @@ export async function getMessagesByAddress(
 	address: `0x${string}`,
 	onPage?: (messages: Message[]) => void
 ): Promise<Message[]> {
-	const latestBlock = await getPublicClient().getBlockNumber();
-	const { messages } = await fetchPages(latestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address }, onPage);
+	const { messages } = await fetchPages(cachedLatestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address }, onPage);
 	return messages;
 }
 

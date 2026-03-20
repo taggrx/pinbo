@@ -15,6 +15,7 @@
 		getAddressInfo,
 		createMessageLoader,
 		getFee,
+		refreshLatestBlock,
 		TOPIC_TYPE,
 		getCustomRpc,
 		setCustomRpc,
@@ -51,6 +52,7 @@
 	let loading = $state(true);
 	let unwatch: (() => void) | null = null;
 	let unwatchWallet: (() => void) | null = null;
+	let blockRefreshInterval: ReturnType<typeof setInterval> | null = null;
 	let permalinkMessage = $state<MessageType | null>(null);
 	let permalinkLoading = $state(false);
 	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
@@ -59,6 +61,11 @@
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
 	let globalError = $state<string | null>(null);
+
+	function handleError(err: unknown) {
+		console.error(err);
+		globalError = ((err as Error).message ?? String(err)).split('\n')[0];
+	}
 	let replyTo = $state<MessageType | null>(null);
 	let pendingReply = false;
 	let profileAddress = $state<string | null>(null);
@@ -164,7 +171,8 @@
 						showPostForm = true;
 						window.scrollTo({ top: 0, behavior: 'smooth' });
 					}
-				} catch {
+				} catch (err) {
+					handleError(err);
 					permalinkMessage = null;
 				} finally {
 					permalinkLoading = false;
@@ -179,7 +187,8 @@
 							profileMessages = [...profileMessages, ...page];
 						}),
 					]);
-				} catch {
+				} catch (err) {
+					handleError(err);
 					profileMessages = [];
 				} finally {
 					profileLoading = false;
@@ -191,7 +200,8 @@
 					await getInboxMessages(inboxMatch[1] as `0x${string}`, (page) => {
 						inboxMessages = [...inboxMessages, ...page];
 					});
-				} catch {
+				} catch (err) {
+					handleError(err);
 					inboxMessages = [];
 				} finally {
 					inboxLoading = false;
@@ -205,8 +215,10 @@
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
 		messageLoader = createMessageLoader();
-		getFee().then((f) => (fee = f)).catch(() => {});
+		getFee().then((f) => (fee = f)).catch(handleError);
 		try {
+			await refreshLatestBlock();
+			blockRefreshInterval = setInterval(() => refreshLatestBlock().catch(() => {}), 60_000);
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
 				if (messages.length === 0) {
 					messages = pageMessages;
@@ -216,7 +228,7 @@
 			});
 			hasMore = more;
 		} catch (err) {
-			console.error('Failed to fetch messages:', err);
+			handleError(err);
 		} finally {
 			loading = false;
 		}
@@ -232,6 +244,7 @@
 	onDestroy(() => {
 		if (unwatch) unwatch();
 		if (unwatchWallet) unwatchWallet();
+		if (blockRefreshInterval) clearInterval(blockRefreshInterval);
 		if (browser) window.removeEventListener('hashchange', handleHashChange);
 	});
 
@@ -255,7 +268,7 @@
 			messages = [...messages, ...newMessages];
 			hasMore = more;
 		} catch (err) {
-			console.error('Failed to load more messages:', err);
+			handleError(err);
 		} finally {
 			loadingMore = false;
 		}
@@ -285,9 +298,7 @@
 				window.location.hash = ROUTES.MESSAGE(txHash);
 			}
 		} catch (err) {
-			const message = (err as Error).message;
-			globalError = message.split('\n')[0];
-			console.error(message);
+			handleError(err);
 			pendingTxHash = null;
 		} finally {
 			posting = false;
