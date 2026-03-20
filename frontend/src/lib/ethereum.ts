@@ -76,9 +76,23 @@ export async function resolveEns(address: `0x${string}`): Promise<string | null>
 	}
 }
 
+const LS_RPC_KEY = 'pinbo_rpc';
+
+export function getCustomRpc(): string | null {
+	return localStorage.getItem(LS_RPC_KEY);
+}
+
+export function setCustomRpc(url: string | null) {
+	if (url) {
+		localStorage.setItem(LS_RPC_KEY, url);
+	} else {
+		localStorage.removeItem(LS_RPC_KEY);
+	}
+}
+
 const publicClient = createPublicClient({
 	chain: pinboChain,
-	transport: http(import.meta.env.VITE_RPC_URL),
+	transport: http(localStorage.getItem(LS_RPC_KEY) || import.meta.env.VITE_RPC_URL),
 });
 
 function getPublicClient() {

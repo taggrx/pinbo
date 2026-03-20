@@ -14,6 +14,8 @@
 		createMessageLoader,
 		getFee,
 		TOPIC_TYPE,
+		getCustomRpc,
+		setCustomRpc,
 	} from '$lib/ethereum';
 	import { hexToBytes, bytesToHex, isAddress } from 'viem';
 	import { fade } from 'svelte/transition';
@@ -211,6 +213,18 @@
 		if (browser) window.removeEventListener('hashchange', handleHashChange);
 	});
 
+	function handleRpcSettings() {
+		const defaultRpc = import.meta.env.VITE_RPC_URL;
+		const customRpc = getCustomRpc();
+		const currentRpc = customRpc || defaultRpc;
+		const label = customRpc ? ' (custom)' : ' (default)';
+		if (!confirm(`Current RPC: ${currentRpc}${label}\n\nDo you want to change it?`)) return;
+		const input = prompt(`New RPC URL (leave empty to reset to default):`, currentRpc);
+		if (input === null) return;
+		setCustomRpc(input.trim() || null);
+		window.location.reload();
+	}
+
 	async function handleLoadMore() {
 		if (!messageLoader || loadingMore) return;
 		loadingMore = true;
@@ -358,7 +372,7 @@
 	</main>
 
 	<footer class="footer">
-		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a>
+		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a><button class="rpc-settings" onclick={handleRpcSettings} title="RPC settings">⚙</button>
 		<span class="middot">·</span>
 		<a href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer">Contract</a>
 		<span class="middot">·</span>
@@ -377,6 +391,20 @@
 		justify-content: center;
 		align-items: center;
 		min-height: 200px;
+	}
+	.rpc-settings {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		color: var(--text-secondary);
+		font-size: 0.7rem;
+		line-height: 1;
+		opacity: 0.7;
+	}
+	.rpc-settings:hover {
+		opacity: 1;
+		color: var(--primary);
 	}
 	.footer {
 		margin-top: 4rem;
