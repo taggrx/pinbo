@@ -137,6 +137,8 @@
 		const hash = window.location.hash;
 		showPostForm = false;
 		replyTo = null;
+		permalinkMessage = null;
+		permalinkLoading = false;
 		profileAddress = null;
 		profileMessages = [];
 		profileInfo = null;
@@ -194,9 +196,6 @@
 				} finally {
 					inboxLoading = false;
 				}
-			} else {
-				permalinkMessage = null;
-				permalinkLoading = false;
 			}
 		}
 	}
