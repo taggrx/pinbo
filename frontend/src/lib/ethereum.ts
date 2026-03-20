@@ -2,10 +2,12 @@ import { writable, get } from 'svelte/store';
 import {
 	createPublicClient,
 	http,
+	parseAbi,
 	parseAbiItem,
 	hexToBytes,
 	bytesToHex,
 	decodeEventLog,
+	formatEther,
 } from 'viem';
 import { mainnet } from 'viem/chains';
 import { watchAccount, getWalletClient, disconnect as wagmiDisconnect } from '@wagmi/core';
@@ -97,6 +99,39 @@ const publicClient = createPublicClient({
 
 function getPublicClient() {
 	return publicClient;
+}
+
+const contractInfoAbi = parseAbi([
+	'function name() view returns (string)',
+	'function symbol() view returns (string)',
+]);
+
+export interface AddressInfo {
+	isContract: boolean;
+	balance: bigint;
+	balanceEth: string;
+	name: string | null;
+	symbol: string | null;
+}
+
+export async function getAddressInfo(address: `0x${string}`): Promise<AddressInfo> {
+	const client = getPublicClient();
+	const [codeResult, balanceResult, nameResult, symbolResult] = await Promise.allSettled([
+		client.getCode({ address }),
+		client.getBalance({ address }),
+		client.readContract({ address, abi: contractInfoAbi, functionName: 'name' }),
+		client.readContract({ address, abi: contractInfoAbi, functionName: 'symbol' }),
+	]);
+	const code = codeResult.status === 'fulfilled' ? codeResult.value : undefined;
+	const isContract = !!code && code !== '0x';
+	const balance = balanceResult.status === 'fulfilled' ? balanceResult.value : 0n;
+	return {
+		isContract,
+		balance,
+		balanceEth: formatEther(balance),
+		name: isContract && nameResult.status === 'fulfilled' ? nameResult.value as string : null,
+		symbol: isContract && symbolResult.status === 'fulfilled' ? symbolResult.value as string : null,
+	};
 }
 
 export async function getFee(): Promise<bigint> {
@@ -220,6 +255,41 @@ export function createMessageLoader() {
 		loadMore,
 		getState: () => ({ oldestBlockQueried, latestBlockQueried }),
 	};
+}
+
+export async function getInboxMessages(
+	address: `0x${string}`,
+	onPage?: (messages: Message[]) => void
+): Promise<Message[]> {
+	const client = getPublicClient();
+	let currentBlock = await client.getBlockNumber();
+	const collected: Message[] = [];
+	while (currentBlock > CONTRACT_DEPLOY_BLOCK) {
+		const pageFrom = currentBlock - PAGE_SIZE > CONTRACT_DEPLOY_BLOCK ? currentBlock - PAGE_SIZE : CONTRACT_DEPLOY_BLOCK;
+		const logs = await client.getLogs({
+			address: pinboContractAddress,
+			event: MESSAGE_EVENT,
+			fromBlock: pageFrom,
+			toBlock: currentBlock,
+		});
+		const filtered = logs
+			.map(logToMessage)
+			.filter((m) =>
+				(m.topics ?? []).some(
+					([type, bytes]) =>
+						type === TOPIC_TYPE.ADDRESS &&
+						bytesToHex(bytes as Uint8Array).toLowerCase() === address.toLowerCase()
+				)
+			)
+			.sort((a, b) => b.timestamp - a.timestamp);
+		if (filtered.length > 0) {
+			collected.push(...filtered);
+			onPage?.(filtered);
+		}
+		currentBlock = pageFrom - 1n;
+		if (pageFrom === CONTRACT_DEPLOY_BLOCK) break;
+	}
+	return collected.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export async function getMessagesByAddress(

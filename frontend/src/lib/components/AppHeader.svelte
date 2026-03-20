@@ -9,7 +9,7 @@
 		dmCount: number;
 		showPostForm: boolean;
 		showAbout: boolean;
-		showInbox: boolean;
+		showLogout: boolean;
 		profileAddress: string | null;
 		permalinkMessage: Message | null;
 		onTogglePostForm: () => void;
@@ -23,7 +23,7 @@
 		dmCount,
 		showPostForm,
 		showAbout,
-		showInbox,
+		showLogout,
 		profileAddress,
 		permalinkMessage,
 		onTogglePostForm,
@@ -53,10 +53,10 @@
 		{#if isConnected}
 			<span class="middot">·</span>
 			<div class="connected">
-				<Address address={account!} href={ROUTES.INBOX} />{#if dmCount > 0}<span class="dm-count">[{dmCount}]</span>{/if}
-				{#if showInbox}
+				{#if showLogout}
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
 				{:else}
+					<Address address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<span class="middot">·</span><a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
 					<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
 						{actionLabel}
 					</button>
@@ -122,6 +122,10 @@
 		color: var(--text-secondary);
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
+		text-decoration: none;
+	}
+	.dm-count:hover {
+		color: var(--primary);
 	}
 	.about-link {
 		color: var(--text-secondary);

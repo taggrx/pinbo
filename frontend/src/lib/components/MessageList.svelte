@@ -8,7 +8,6 @@
 		loading = false,
 		hasMore = false,
 		loadingMore = false,
-		showSender = true,
 		emptyText = 'NO MESSAGES.',
 		onLoadMore,
 		onReply,
@@ -17,7 +16,6 @@
 		loading?: boolean;
 		hasMore?: boolean;
 		loadingMore?: boolean;
-		showSender?: boolean;
 		emptyText?: string;
 		onLoadMore?: () => void;
 		onReply?: (message: MessageType) => void;
@@ -32,7 +30,7 @@
 	<div class="messages-list">
 		{#each messages as message (message.txHash)}
 			<div transition:fly={{ y: 6, duration: 200 }}>
-				<Message {message} {showSender} {onReply} />
+				<Message {message} {onReply} />
 			</div>
 		{/each}
 	</div>

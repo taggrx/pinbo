@@ -10,12 +10,11 @@
 		message: MessageType;
 		showPermalink?: boolean;
 		showReply?: boolean;
-		showSender?: boolean;
 		truncate?: boolean;
 		onReply?: (message: MessageType) => void;
 	}
 
-	let { message, showPermalink = true, showReply = true, showSender = true, truncate = true, onReply }: Props = $props();
+	let { message, showPermalink = true, showReply = true, truncate = true, onReply }: Props = $props();
 
 	let contentEl = $state<HTMLElement | null>(null);
 	let expanded = $state(false);
@@ -76,9 +75,7 @@
 <div class="message card" class:clickable={showPermalink} onclick={handleCardClick}>
 	<div class="message-header">
 		<span class="message-meta">
-			{#if showSender}
 				<Address address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
-			{/if}
 			{#if recipientAddress}
 				<span class="to-arrow">→</span>
 				<Address address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
@@ -210,6 +207,7 @@
 		gap: var(--sep-gap);
 		font-size: var(--text-xs);
 		font-family: var(--font-mono);
+		margin-top: 0.75rem;
 	}
 	.footer-action {
 		background: none;

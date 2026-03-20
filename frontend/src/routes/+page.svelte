@@ -11,11 +11,14 @@
 		watchMessages,
 		getMessageByTxHash,
 		getMessagesByAddress,
+		getInboxMessages,
+		getAddressInfo,
 		createMessageLoader,
 		getFee,
 		TOPIC_TYPE,
 		getCustomRpc,
 		setCustomRpc,
+		type AddressInfo,
 	} from '$lib/ethereum';
 	import { hexToBytes, bytesToHex, isAddress } from 'viem';
 	import { fade } from 'svelte/transition';
@@ -55,18 +58,25 @@
 	let loadingMore = $state(false);
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
-	let showInbox = $state(false);
 	let globalError = $state<string | null>(null);
 	let replyTo = $state<MessageType | null>(null);
 	let pendingReply = false;
 	let profileAddress = $state<string | null>(null);
 	let profileMessages = $state<MessageType[]>([]);
 	let profileLoading = $state(false);
+	let profileInfo = $state<AddressInfo | null>(null);
+	let inboxAddress = $state<string | null>(null);
+	let inboxMessages = $state<MessageType[]>([]);
+	let inboxLoading = $state(false);
 	let fee = $state<bigint | null>(null);
 	let toAddress = $state('');
 	let toAddressLocked = $state(false);
 
-	const inboxMessages = $derived(
+	const isOwnInbox = $derived(
+		!!inboxAddress && !!$account && inboxAddress.toLowerCase() === $account.toLowerCase()
+	);
+
+	const dmMessages = $derived(
 		$account
 			? messages.filter((m) =>
 					(m.topics ?? []).some(
@@ -77,7 +87,7 @@
 				)
 			: []
 	);
-	const dmCount = $derived(inboxMessages.length);
+	const dmCount = $derived(dmMessages.length);
 
 	function shortAddr(addr: string) {
 		return addr.slice(0, 6) + '…' + addr.slice(-4);
@@ -129,17 +139,17 @@
 		replyTo = null;
 		profileAddress = null;
 		profileMessages = [];
-		showInbox = false;
+		profileInfo = null;
+		inboxAddress = null;
+		inboxMessages = [];
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
-		} else if (hash === ROUTES.INBOX) {
-			showAbout = false;
-			showInbox = true;
 		} else {
 			showAbout = false;
 			const permalinkMatch = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
-			const profileMatch = hash.match(/^#\/u\/(0x[a-fA-F0-9]{40})$/i);
+			const profileMatch = hash.match(/^#\/a\/(0x[a-fA-F0-9]{40})$/i);
+			const inboxMatch = hash.match(/^#\/i\/(0x[a-fA-F0-9]{40})$/i);
 
 			if (permalinkMatch) {
 				permalinkMessage = null;
@@ -158,18 +168,31 @@
 					permalinkLoading = false;
 				}
 			} else if (profileMatch) {
-				permalinkMessage = null;
 				profileAddress = profileMatch[1];
 				profileLoading = true;
-				profileMessages = [];
 				try {
-					await getMessagesByAddress(profileMatch[1] as `0x${string}`, (page) => {
-						profileMessages = [...profileMessages, ...page];
-					});
+					await Promise.all([
+						getAddressInfo(profileMatch[1] as `0x${string}`).then((info) => { profileInfo = info; }),
+						getMessagesByAddress(profileMatch[1] as `0x${string}`, (page) => {
+							profileMessages = [...profileMessages, ...page];
+						}),
+					]);
 				} catch {
 					profileMessages = [];
 				} finally {
 					profileLoading = false;
+				}
+			} else if (inboxMatch) {
+				inboxAddress = inboxMatch[1];
+				inboxLoading = true;
+				try {
+					await getInboxMessages(inboxMatch[1] as `0x${string}`, (page) => {
+						inboxMessages = [...inboxMessages, ...page];
+					});
+				} catch {
+					inboxMessages = [];
+				} finally {
+					inboxLoading = false;
 				}
 			} else {
 				permalinkMessage = null;
@@ -292,7 +315,7 @@
 		{dmCount}
 		{showPostForm}
 		{showAbout}
-		{showInbox}
+		showLogout={isOwnInbox}
 		{profileAddress}
 		{permalinkMessage}
 		onTogglePostForm={togglePostForm}
@@ -324,11 +347,13 @@
 			/>
 		{/if}
 
-		{#if showInbox}
+		{#if inboxAddress}
 			<InboxView
+				address={inboxAddress}
 				messages={inboxMessages}
-				loading={loading}
+				loading={inboxLoading}
 				isConnected={$isConnected}
+				isOwn={isOwnInbox}
 				onReply={handleReply}
 			/>
 		{:else if showAbout}
@@ -354,6 +379,7 @@
 				messages={profileMessages}
 				loading={profileLoading}
 				isConnected={$isConnected}
+				info={profileInfo}
 				onReply={handleReply}
 			/>
 		{:else}
