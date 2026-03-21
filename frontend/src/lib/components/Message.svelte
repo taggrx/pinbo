@@ -87,7 +87,8 @@
 				: 'BLOCK ' + message.blockNumber}</span
 		>
 	</div>
-	<div class="content-wrapper" class:truncated={truncate && !expanded} bind:this={contentEl}>
+	<div class="content-wrapper" class:truncated={truncate && !expanded} bind:this={contentEl}
+		style:font-size="{Math.max(1, 2 - message.message.length / 500)}em">
 		<MarkdownContent text={message.message} />
 		{#if truncate && !expanded && overflows}
 			<div class="gradient-overlay"></div>
@@ -154,7 +155,7 @@
 		position: relative;
 	}
 	.content-wrapper.truncated {
-		max-height: 100vh;
+		max-height: 80vh;
 		overflow: hidden;
 	}
 	.gradient-overlay {
