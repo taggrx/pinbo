@@ -70,33 +70,32 @@ function getEnsClient() {
 	return createPublicClient({ chain: mainnet, transport: http(ensRpc) });
 }
 
-export async function resolveEnsInfo(address: `0x${string}`): Promise<{ name: string | null; avatar: string | null }> {
+export async function resolveEnsName(address: `0x${string}`): Promise<string | null> {
 	const client = getEnsClient();
-	if (!client) return { name: null, avatar: null };
+	if (!client) return null;
+	if (ensCache.has(address)) return ensCache.get(address) ?? null;
 	let name: string | null;
-	if (ensCache.has(address)) {
-		name = ensCache.get(address) ?? null;
-	} else {
-		try {
-			name = await client.getEnsName({ address }) ?? null;
-		} catch {
-			name = null;
-		}
-		ensCache.set(address, name);
+	try {
+		name = await client.getEnsName({ address }) ?? null;
+	} catch {
+		name = null;
 	}
-	if (!name) return { name: null, avatar: null };
+	ensCache.set(address, name);
+	return name;
+}
+
+export async function resolveEnsAvatar(name: string): Promise<string | null> {
+	const client = getEnsClient();
+	if (!client) return null;
+	if (ensAvatarCache.has(name)) return ensAvatarCache.get(name) ?? null;
 	let avatar: string | null;
-	if (ensAvatarCache.has(name)) {
-		avatar = ensAvatarCache.get(name) ?? null;
-	} else {
-		try {
-			avatar = await client.getEnsAvatar({ name }) ?? null;
-		} catch {
-			avatar = null;
-		}
-		ensAvatarCache.set(name, avatar);
+	try {
+		avatar = await client.getEnsAvatar({ name }) ?? null;
+	} catch {
+		avatar = null;
 	}
-	return { name, avatar };
+	ensAvatarCache.set(name, avatar);
+	return avatar;
 }
 
 const LS_RPC_KEY = 'pinbo_rpc';

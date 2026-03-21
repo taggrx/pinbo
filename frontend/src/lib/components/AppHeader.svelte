@@ -53,7 +53,7 @@
 				{#if showLogout}
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
 				{:else}
-					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<span class="middot">·</span><a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
+					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
 					{#if !permalinkMessage}
 						<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
 							{actionLabel}
@@ -145,7 +145,7 @@
 		display: none;
 	}
 	@media (max-width: 600px) {
-		.post-btn {
+		.post-btn:not(.btn-logout) {
 			display: none;
 		}
 		.post-fab {

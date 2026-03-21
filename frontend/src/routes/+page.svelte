@@ -123,7 +123,7 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	function handleReply(message: MessageType) {
+	async function handleReply(message: MessageType) {
 		if (permalinkMessage?.txHash === message.txHash) {
 			if (showPostForm) {
 				showPostForm = false;
@@ -132,7 +132,8 @@
 			}
 			replyTo = message;
 			showPostForm = true;
-			window.scrollTo({ top: 0, behavior: 'smooth' });
+			await tick();
+			document.querySelector('.post-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		} else {
 			pendingReply = true;
 			window.location.hash = ROUTES.MESSAGE(message.txHash);

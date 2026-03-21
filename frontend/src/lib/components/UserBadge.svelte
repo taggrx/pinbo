@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolveEnsInfo } from '$lib/ethereum';
+	import { resolveEnsName, resolveEnsAvatar } from '$lib/ethereum';
 	import { create as makeBlockie } from 'blockies-ts';
 
 	interface Props {
@@ -18,15 +18,21 @@
 		loading = true;
 		ensName = null;
 		ensAvatar = null;
-		resolveEnsInfo(address as `0x${string}`)
-			.then(({ name, avatar }) => {
-				ensName = name;
+		const addr = address as `0x${string}`;
+		let cancelled = false;
+		resolveEnsName(addr).then(name => {
+			if (cancelled) return;
+			ensName = name;
+			loading = false;
+			if (!name) return;
+			resolveEnsAvatar(name).then(avatar => {
+				if (cancelled) return;
 				ensAvatar = avatar;
-				loading = false;
-			})
-			.catch(() => {
-				loading = false;
 			});
+		}).catch(() => {
+			if (!cancelled) loading = false;
+		});
+		return () => { cancelled = true; };
 	});
 
 	function getDisplayName() {
