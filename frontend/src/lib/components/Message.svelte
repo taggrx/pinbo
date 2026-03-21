@@ -8,13 +8,11 @@
 
 	interface Props {
 		message: MessageType;
-		showPermalink?: boolean;
-		showReply?: boolean;
 		truncate?: boolean;
 		onReply?: (message: MessageType) => void;
 	}
 
-	let { message, showPermalink = true, showReply = true, truncate = true, onReply }: Props = $props();
+	let { message, truncate = true, onReply }: Props = $props();
 
 	let contentEl = $state<HTMLElement | null>(null);
 	let expanded = $state(false);
@@ -56,8 +54,10 @@
 		return getMessageByTxHash(txHash);
 	}
 
+	const isPermalink = $derived(window.location.hash === ROUTES.MESSAGE(message.txHash));
+
 	function handleCardClick(e: MouseEvent) {
-		if (!showPermalink) return;
+		if (isPermalink) return;
 		if ((e.target as HTMLElement).closest('a, button')) return;
 		window.location.hash = ROUTES.MESSAGE(message.txHash);
 	}
@@ -72,7 +72,7 @@
 	}
 </script>
 
-<div class="message card" class:clickable={showPermalink} onclick={handleCardClick}>
+<div class="message card" class:clickable={!isPermalink} onclick={handleCardClick}>
 	<div class="message-header">
 		<span class="message-meta">
 				<UserBadge address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
@@ -103,25 +103,21 @@
 			{#await fetchRepost(bytes)}
 				<div class="repost-loading">loading repost…</div>
 			{:then reposted}
-				<Message message={reposted} showPermalink={false} showReply={false} truncate={false} />
+				<Message message={reposted} truncate={false} />
 			{:catch}
 				<div class="repost-error">repost not found</div>
 			{/await}
 		</div>
 	{/each}
-	{#if showPermalink || (showReply && onReply)}
-		<div class="message-footer">
-			{#if showPermalink}
-				<button class="footer-action" onclick={handleShare}>SHARE</button>
-			{/if}
-			{#if showPermalink && showReply && onReply}
-				<span class="middot">·</span>
-			{/if}
-			{#if showReply && onReply}
-				<button class="footer-action" onclick={() => onReply!(message)}>REPLY</button>
-			{/if}
-		</div>
-	{/if}
+	<div class="message-footer">
+		<a class="footer-action" href={`https://etherscan.io/tx/${message.txHash}`} target="_blank" rel="noopener noreferrer">TX</a>
+		<span class="middot">·</span>
+		<button class="footer-action" onclick={handleShare}>SHARE</button>
+		{#if onReply}
+			<span class="middot">·</span>
+			<button class="footer-action" onclick={() => onReply!(message)}>REPLY</button>
+		{/if}
+	</div>
 </div>
 
 <style>

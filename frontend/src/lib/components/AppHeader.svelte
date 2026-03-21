@@ -14,7 +14,6 @@
 		permalinkMessage: Message | null;
 		onTogglePostForm: () => void;
 		onMessageTo: (address: string) => void;
-		onReply: (message: Message) => void;
 	}
 
 	let {
@@ -28,17 +27,15 @@
 		permalinkMessage,
 		onTogglePostForm,
 		onMessageTo,
-		onReply,
 	}: Props = $props();
 
 	function handleAction() {
 		if (profileAddress) onMessageTo(profileAddress);
-		else if (permalinkMessage) onReply(permalinkMessage);
 		else onTogglePostForm();
 	}
 
-	const actionLabel = $derived(profileAddress ? 'DM' : permalinkMessage ? 'REPLY' : 'POST');
-	const fabLabel = $derived(profileAddress ? '✉' : permalinkMessage ? '↩' : '+');
+	const actionLabel = $derived(profileAddress ? 'DM' : 'POST');
+	const fabLabel = $derived(profileAddress ? '✉' : '+');
 </script>
 
 <header class="header">
@@ -57,17 +54,21 @@
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
 				{:else}
 					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<span class="middot">·</span><a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
-					<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
-						{actionLabel}
-					</button>
+					{#if !permalinkMessage}
+						<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
+							{actionLabel}
+						</button>
+					{/if}
 				{/if}
 			</div>
-			<button
-				class="btn post-fab"
-				onclick={handleAction}
-				disabled={showAbout}
-				style:display={showPostForm ? 'none' : ''}
-			>{fabLabel}</button>
+			{#if !permalinkMessage}
+				<button
+					class="btn post-fab"
+					onclick={handleAction}
+					disabled={showAbout}
+					style:display={showPostForm ? 'none' : ''}
+				>{fabLabel}</button>
+			{/if}
 		{:else}
 			<button class="btn connect" onclick={connect}>CONNECT WALLET</button>
 		{/if}

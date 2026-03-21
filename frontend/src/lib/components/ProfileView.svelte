@@ -9,12 +9,11 @@
 		address: string;
 		messages: Message[];
 		loading: boolean;
-		isConnected: boolean;
 		info: AddressInfo | null;
 		onReply?: (message: Message) => void;
 	}
 
-	let { address, messages, loading, isConnected, info, onReply }: Props = $props();
+	let { address, messages, loading, info, onReply }: Props = $props();
 
 	function formatBalance(eth: string): string {
 		const n = parseFloat(eth);
@@ -49,7 +48,7 @@
 		{messages}
 		{loading}
 		emptyText="NO MESSAGES FROM THIS ADDRESS."
-		onReply={isConnected ? onReply : undefined}
+		{onReply}
 	/>
 </div>
 

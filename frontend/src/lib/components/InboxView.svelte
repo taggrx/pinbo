@@ -8,12 +8,11 @@
 		address: string;
 		messages: Message[];
 		loading: boolean;
-		isConnected: boolean;
 		isOwn?: boolean;
 		onReply?: (message: Message) => void;
 	}
 
-	let { address, messages, loading, isConnected, isOwn = false, onReply }: Props = $props();
+	let { address, messages, loading, isOwn = false, onReply }: Props = $props();
 </script>
 
 <div class="inbox-section" in:fade={{ duration: 150 }}>
@@ -28,7 +27,7 @@
 		{messages}
 		{loading}
 		emptyText="NO MESSAGES ADDRESSED TO THIS ADDRESS."
-		onReply={isConnected ? onReply : undefined}
+		{onReply}
 	/>
 </div>
 

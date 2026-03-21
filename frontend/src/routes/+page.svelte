@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
 		account,
@@ -169,7 +169,8 @@
 						pendingReply = false;
 						replyTo = permalinkMessage;
 						showPostForm = true;
-						window.scrollTo({ top: 0, behavior: 'smooth' });
+						await tick();
+						document.querySelector('.post-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 					}
 				} catch (err) {
 					handleError(err);
@@ -330,7 +331,6 @@
 		{permalinkMessage}
 		onTogglePostForm={togglePostForm}
 		onMessageTo={handleMessageTo}
-		onReply={handleReply}
 	/>
 
 	<ErrorBanner
@@ -362,9 +362,8 @@
 				address={inboxAddress}
 				messages={inboxMessages}
 				loading={inboxLoading}
-				isConnected={$isConnected}
 				isOwn={isOwnInbox}
-				onReply={handleReply}
+				onReply={$isConnected ? handleReply : undefined}
 			/>
 		{:else if showAbout}
 			<div class="about-section" in:fade={{ duration: 150 }}>
@@ -382,15 +381,15 @@
 				{fee}
 				onPost={handlePost}
 				onCloseForm={() => { resetPostForm(); showPostForm = false; }}
+				onReply={handleReply}
 			/>
 		{:else if profileAddress}
 			<ProfileView
 				address={profileAddress}
 				messages={profileMessages}
 				loading={profileLoading}
-				isConnected={$isConnected}
 				info={profileInfo}
-				onReply={handleReply}
+				onReply={$isConnected ? handleReply : undefined}
 			/>
 		{:else}
 			<div class="messages-section" in:fade={{ duration: 150 }}>

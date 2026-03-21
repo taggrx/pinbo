@@ -67,6 +67,7 @@
 	.editor-wrapper {
 		resize: vertical;
 		overflow: hidden;
+		height: 200px;
 		min-height: 120px;
 	}
 

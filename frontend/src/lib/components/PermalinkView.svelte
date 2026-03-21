@@ -15,6 +15,7 @@
 		fee?: bigint | null;
 		onPost: () => void;
 		onCloseForm: () => void;
+		onReply: (message: Message) => void;
 	}
 
 	let {
@@ -28,6 +29,7 @@
 		fee = null,
 		onPost,
 		onCloseForm,
+		onReply,
 	}: Props = $props();
 </script>
 
@@ -35,14 +37,7 @@
 	<div class="loading" in:fade={{ duration: 150 }}>LOADING...</div>
 {:else if message}
 	<div in:fade={{ duration: 150 }}>
-		<MessageComponent {message} showPermalink={false} showReply={false} truncate={false} />
-		<div class="permalink-tx">
-			<a
-				href={`https://etherscan.io/tx/${message.txHash}`}
-				target="_blank"
-				rel="noopener noreferrer">BLOCKCHAIN TRANSACTION</a
-			>
-		</div>
+		<MessageComponent {message} truncate={false} onReply={isConnected && !wrongNetwork ? onReply : undefined} />
 		{#if isConnected && !wrongNetwork && showPostForm}
 			<PostForm
 				bind:value={newMessage}
@@ -65,13 +60,5 @@
 		justify-content: center;
 		align-items: center;
 		min-height: 200px;
-	}
-	.permalink-tx {
-		text-align: center;
-		margin: 2rem 0 1rem;
-		font-size: var(--text-xs);
-		font-family: var(--font-mono);
-		color: var(--text-secondary);
-		word-break: break-all;
 	}
 </style>
