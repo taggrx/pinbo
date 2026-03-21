@@ -7,12 +7,12 @@
 
 	let { value = $bindable(''), placeholder = '' } = $props();
 
+	let wrapper: HTMLDivElement;
 	let container: HTMLDivElement;
 	// @ts-ignore - no types available
 	let editor: Editor;
 
 	const MODE_KEY = 'pinbo_editor_mode';
-
 	onMount(() => {
 		const savedMode = (localStorage.getItem(MODE_KEY) as 'wysiwyg' | 'markdown') ?? 'wysiwyg';
 
@@ -20,7 +20,7 @@
 			el: container,
 			initialEditType: savedMode,
 			previewStyle: 'tab',
-			height: '200px',
+			height: '100%',
 			placeholder,
 			usageStatistics: false,
 			theme: 'dark',
@@ -43,6 +43,13 @@
 		editor.on('changeMode', (mode: string) => {
 			localStorage.setItem(MODE_KEY, mode);
 		});
+
+		const ro = new ResizeObserver(() => {
+			editor.setHeight('100%');
+		});
+		ro.observe(wrapper);
+
+		return () => ro.disconnect();
 	});
 
 	onDestroy(() => {
@@ -52,9 +59,17 @@
 	});
 </script>
 
-<div bind:this={container}></div>
+<div class="editor-wrapper" bind:this={wrapper}>
+	<div bind:this={container}></div>
+</div>
 
 <style>
+	.editor-wrapper {
+		resize: vertical;
+		overflow: hidden;
+		min-height: 120px;
+	}
+
 	/* Font */
 	:global(.toastui-editor-defaultUI),
 	:global(.toastui-editor-defaultUI *),
