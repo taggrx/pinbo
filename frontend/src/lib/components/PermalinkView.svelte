@@ -37,7 +37,11 @@
 	<div class="loading" in:fade={{ duration: 150 }}>LOADING...</div>
 {:else if message}
 	<div in:fade={{ duration: 150 }}>
-		<MessageComponent {message} truncate={false} onReply={isConnected && !wrongNetwork ? onReply : undefined} />
+		<MessageComponent
+			{message}
+			truncate={false}
+			onReply={isConnected && !wrongNetwork ? onReply : undefined}
+		/>
 		{#if isConnected && !wrongNetwork && showPostForm}
 			<PostForm
 				bind:value={newMessage}

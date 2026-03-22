@@ -40,7 +40,7 @@
 		<div class="btn-row">
 			<button class="btn btn-secondary" onclick={onClose}>CLOSE</button>
 			<button class="btn" onclick={onSubmit} disabled={posting || !value.trim() || !toAddressValid}>
-				{posting ? (isReply ? 'REPLYING' : 'SENDING') : (isReply ? 'REPLY' : 'SEND')}
+				{posting ? (isReply ? 'REPLYING' : 'SENDING') : isReply ? 'REPLY' : 'SEND'}
 			</button>
 		</div>
 		{#if fee !== null}

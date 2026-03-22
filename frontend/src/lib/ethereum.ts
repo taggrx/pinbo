@@ -10,13 +10,27 @@ import {
 	formatEther,
 } from 'viem';
 import { mainnet } from 'viem/chains';
-import { watchAccount, getWalletClient, connect as wagmiConnect, disconnect as wagmiDisconnect } from '@wagmi/core';
+import {
+	watchAccount,
+	getWalletClient,
+	connect as wagmiConnect,
+	disconnect as wagmiDisconnect,
+} from '@wagmi/core';
 import { injected } from '@wagmi/connectors';
 import { wagmiAdapter, appKitModal } from './wallet';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import type { Message } from './types';
-import { idbSaveMessage, idbGetMessage, idbGetAllMessages, idbGetMeta, idbSetMeta, idbClear, idbGetEns, idbSetEns } from './idb';
+import {
+	idbSaveMessage,
+	idbGetMessage,
+	idbGetAllMessages,
+	idbGetMeta,
+	idbSetMeta,
+	idbClear,
+	idbGetEns,
+	idbSetEns,
+} from './idb';
 import pako from 'pako';
 import { encode as msgpackEncode, decode as msgpackDecode } from '@msgpack/msgpack';
 
@@ -108,8 +122,11 @@ export async function resolveEnsName(address: `0x${string}`): Promise<string | n
 	const promise = (async () => {
 		try {
 			const cached = await idbGetEns(`name:${address}`);
-			if (cached !== undefined) { ensCache.set(address, cached); return cached; }
-			const name = await client.getEnsName({ address }) ?? null;
+			if (cached !== undefined) {
+				ensCache.set(address, cached);
+				return cached;
+			}
+			const name = (await client.getEnsName({ address })) ?? null;
 			ensCache.set(address, name);
 			idbSetEns(`name:${address}`, name).catch(() => {});
 			return name;
@@ -138,8 +155,11 @@ export async function resolveEnsAvatar(name: string): Promise<string | null> {
 	const promise = (async () => {
 		try {
 			const cached = await idbGetEns(`avatar:${name}`);
-			if (cached !== undefined) { ensAvatarCache.set(name, cached); return cached; }
-			const avatar = await client.getEnsAvatar({ name }) ?? null;
+			if (cached !== undefined) {
+				ensAvatarCache.set(name, cached);
+				return cached;
+			}
+			const avatar = (await client.getEnsAvatar({ name })) ?? null;
 			ensAvatarCache.set(name, avatar);
 			idbSetEns(`avatar:${name}`, avatar).catch(() => {});
 			return avatar;
@@ -213,8 +233,9 @@ export async function getAddressInfo(address: `0x${string}`): Promise<AddressInf
 		isContract,
 		balance,
 		balanceEth: formatEther(balance),
-		name: isContract && nameResult.status === 'fulfilled' ? nameResult.value as string : null,
-		symbol: isContract && symbolResult.status === 'fulfilled' ? symbolResult.value as string : null,
+		name: isContract && nameResult.status === 'fulfilled' ? (nameResult.value as string) : null,
+		symbol:
+			isContract && symbolResult.status === 'fulfilled' ? (symbolResult.value as string) : null,
 	};
 }
 
@@ -233,7 +254,6 @@ export async function getFee(): Promise<bigint> {
 	feeCache = { value, ts: Date.now() };
 	return value;
 }
-
 
 const CONTRACT_DEPLOY_BLOCK = import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK
 	? BigInt(import.meta.env.VITE_CONTRACT_DEPLOY_BLOCK)
@@ -371,14 +391,16 @@ export function createMessageLoader() {
 		try {
 			[idbMsgs, newestCachedBlock, oldestCachedBlock] = await Promise.all([
 				idbGetAllMessages(),
-				idbGetMeta('newestBlock').then(v => v !== null ? BigInt(v) : null),
-				idbGetMeta('oldestBlock').then(v => v !== null ? BigInt(v) : null),
+				idbGetMeta('newestBlock').then((v) => (v !== null ? BigInt(v) : null)),
+				idbGetMeta('oldestBlock').then((v) => (v !== null ? BigInt(v) : null)),
 			]);
 			if (idbMsgs.length > 0) {
 				onPage?.(idbMsgs.slice(0, targetCount));
 				idbOffset = Math.min(targetCount, idbMsgs.length);
 			}
-		} catch { /* IDB unavailable, fall through to RPC-only */ }
+		} catch {
+			/* IDB unavailable, fall through to RPC-only */
+		}
 
 		// Fetch from RPC only the blocks newer than what's already cached
 		const fetchStop = newestCachedBlock !== null ? newestCachedBlock + 1n : CONTRACT_DEPLOY_BLOCK;
@@ -386,7 +408,13 @@ export function createMessageLoader() {
 			// If we have prior cache, fetch ALL new blocks to close the gap fully.
 			// On first visit there's no cache, so stop after targetCount to show results quickly.
 			const rpcTarget = newestCachedBlock !== null ? Infinity : targetCount;
-			const { messages: _, nextBlock } = await fetchPages(startBlock, fetchStop, rpcTarget, undefined, onPage);
+			const { messages: _, nextBlock } = await fetchPages(
+				startBlock,
+				fetchStop,
+				rpcTarget,
+				undefined,
+				onPage
+			);
 			try {
 				await idbSetMeta('newestBlock', Number(startBlock));
 				if (oldestCachedBlock === null) await idbSetMeta('oldestBlock', Number(nextBlock));
@@ -422,8 +450,14 @@ export function createMessageLoader() {
 		if (!oldestBlockQueried) throw new Error('Must call loadInitial first');
 		if (oldestBlockQueried <= CONTRACT_DEPLOY_BLOCK) return { messages: [], hasMore: false };
 
-		const { messages, nextBlock } = await fetchPages(oldestBlockQueried, CONTRACT_DEPLOY_BLOCK, targetCount);
-		try { await idbSetMeta('oldestBlock', Number(nextBlock)); } catch {}
+		const { messages, nextBlock } = await fetchPages(
+			oldestBlockQueried,
+			CONTRACT_DEPLOY_BLOCK,
+			targetCount
+		);
+		try {
+			await idbSetMeta('oldestBlock', Number(nextBlock));
+		} catch {}
 		oldestBlockQueried = nextBlock;
 		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
 	}
@@ -451,7 +485,7 @@ async function fetchAllWithCache(
 	try {
 		const [all, oldest] = await Promise.all([
 			idbGetAllMessages(),
-			idbGetMeta('oldestBlock').then(v => v !== null ? BigInt(v) : null),
+			idbGetMeta('oldestBlock').then((v) => (v !== null ? BigInt(v) : null)),
 		]);
 		oldestCachedBlock = oldest;
 		idbResults = all.filter(idbFilter).sort((a, b) => b.timestamp - a.timestamp);
@@ -466,11 +500,18 @@ async function fetchAllWithCache(
 	// Partial or no cache — scan only the blocks not yet in IDB
 	const rpcStartBlock = oldestCachedBlock !== null ? oldestCachedBlock - 1n : cachedLatestBlock;
 	const { messages: rpcMessages, nextBlock } = await fetchPages(
-		rpcStartBlock, CONTRACT_DEPLOY_BLOCK, Infinity, rpcArgs, onPage, rpcFilter
+		rpcStartBlock,
+		CONTRACT_DEPLOY_BLOCK,
+		Infinity,
+		rpcArgs,
+		onPage,
+		rpcFilter
 	);
 	// Advance the oldestBlock cursor so subsequent calls skip this range.
 	// Individual messages are already saved by logToMessage; this updates the scan bookmark.
-	try { await idbSetMeta('oldestBlock', Number(nextBlock)); } catch {}
+	try {
+		await idbSetMeta('oldestBlock', Number(nextBlock));
+	} catch {}
 
 	return [...idbResults, ...rpcMessages].sort((a, b) => b.timestamp - a.timestamp);
 }
@@ -489,8 +530,7 @@ export async function getInboxMessages(
 	const topicFilter = (m: Message) =>
 		(m.topics ?? []).some(
 			([type, bytes]) =>
-				type === TOPIC_TYPE.ADDRESS &&
-				bytesToHex(bytes as Uint8Array).toLowerCase() === addrLower
+				type === TOPIC_TYPE.ADDRESS && bytesToHex(bytes as Uint8Array).toLowerCase() === addrLower
 		);
 	return fetchAllWithCache(topicFilter, undefined, topicFilter, onPage);
 }
@@ -511,7 +551,6 @@ export async function getMessagesByAddress(
 		onPage
 	);
 }
-
 
 /**
  * Sets up a wagmi account watcher that keeps the account/isConnected/wrongNetwork
@@ -618,7 +657,10 @@ export async function getMessageByTxHash(txHash: `0x${string}`) {
 	const promise = (async () => {
 		try {
 			const cached = await idbGetMessage(txHash);
-			if (cached) { messageCache.set(txHash, cached); return cached; }
+			if (cached) {
+				messageCache.set(txHash, cached);
+				return cached;
+			}
 			const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
 			const log = receipt.logs.find(
 				(l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase()

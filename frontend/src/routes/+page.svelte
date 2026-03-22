@@ -138,7 +138,9 @@
 			replyTo = message;
 			showPostForm = true;
 			await tick();
-			document.querySelector('.post-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			document
+				.querySelector('.post-section')
+				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		} else {
 			pendingReply = true;
 			window.location.hash = ROUTES.MESSAGE(message.txHash);
@@ -176,7 +178,9 @@
 						replyTo = permalinkMessage;
 						showPostForm = true;
 						await tick();
-						document.querySelector('.post-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+						document
+							.querySelector('.post-section')
+							?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 					}
 				} catch (err) {
 					handleError(err);
@@ -196,12 +200,18 @@
 					profileLoading = true;
 					try {
 						await Promise.all([
-							getAddressInfo(addr as `0x${string}`).then((info) => { profileInfo = info; }),
+							getAddressInfo(addr as `0x${string}`).then((info) => {
+								profileInfo = info;
+							}),
 							getMessagesByAddress(addr as `0x${string}`, (page) => {
 								profileMessages = [...profileMessages, ...page];
 							}),
 						]);
-						profileCache.set(profKey, { messages: profileMessages, info: profileInfo, ts: Date.now() });
+						profileCache.set(profKey, {
+							messages: profileMessages,
+							info: profileInfo,
+							ts: Date.now(),
+						});
 					} catch (err) {
 						handleError(err);
 						profileMessages = [];
@@ -239,20 +249,25 @@
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
 		messageLoader = createMessageLoader();
-		getFee().then((f) => (fee = f)).catch(handleError);
+		getFee()
+			.then((f) => (fee = f))
+			.catch(handleError);
 		try {
 			await refreshLatestBlock();
 			blockRefreshInterval = setInterval(() => refreshLatestBlock().catch(() => {}), 60_000);
 			const seen = new Set<string>();
-			const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
-				const fresh = pageMessages.filter((m: any) => !seen.has(m.txHash));
-				fresh.forEach((m: any) => seen.add(m.txHash));
-				if (messages.length === 0) {
-					messages = fresh;
-				} else {
-					messages = [...messages, ...fresh].sort((a: any, b: any) => b.timestamp - a.timestamp);
+			const { hasMore: more } = await messageLoader.loadInitialStreaming(
+				50,
+				(pageMessages: any[]) => {
+					const fresh = pageMessages.filter((m: any) => !seen.has(m.txHash));
+					fresh.forEach((m: any) => seen.add(m.txHash));
+					if (messages.length === 0) {
+						messages = fresh;
+					} else {
+						messages = [...messages, ...fresh].sort((a: any, b: any) => b.timestamp - a.timestamp);
+					}
 				}
-			});
+			);
 			hasMore = more;
 		} catch (err) {
 			handleError(err);
@@ -308,7 +323,8 @@
 		try {
 			const topics: Array<[number, Uint8Array]> = [];
 			if (replyTo) topics.push([TOPIC_TYPE.REPOST, hexToBytes(replyTo.txHash as `0x${string}`)]);
-			if (toAddress.trim() && isAddress(toAddress.trim())) topics.push([TOPIC_TYPE.ADDRESS, hexToBytes(toAddress.trim() as `0x${string}`)]);
+			if (toAddress.trim() && isAddress(toAddress.trim()))
+				topics.push([TOPIC_TYPE.ADDRESS, hexToBytes(toAddress.trim() as `0x${string}`)]);
 			const topicsOrNull = topics.length ? topics : null;
 			const txHash = await postMessage(newMessage.trim(), topicsOrNull);
 			pendingTxHash = txHash;
@@ -379,7 +395,10 @@
 				{toAddress}
 				{toAddressLocked}
 				onSubmit={handlePost}
-				onClose={() => { resetPostForm(); showPostForm = false; }}
+				onClose={() => {
+					resetPostForm();
+					showPostForm = false;
+				}}
 			/>
 		{/if}
 
@@ -406,7 +425,10 @@
 				{posting}
 				{fee}
 				onPost={handlePost}
-				onCloseForm={() => { resetPostForm(); showPostForm = false; }}
+				onCloseForm={() => {
+					resetPostForm();
+					showPostForm = false;
+				}}
 				onReply={handleReply}
 			/>
 		{:else if profileAddress}
@@ -433,9 +455,17 @@
 	</main>
 
 	<footer class="footer">
-		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a><button class="rpc-settings" onclick={handleRpcSettings} title="RPC settings">⚙</button>
+		<a href={import.meta.env.VITE_RPC_URL} target="_blank" rel="noopener noreferrer">RPC</a><button
+			class="rpc-settings"
+			onclick={handleRpcSettings}
+			title="RPC settings">⚙</button
+		>
 		<span class="middot">·</span>
-		<a href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer">Contract</a>
+		<a
+			href={`https://etherscan.io/address/${import.meta.env.VITE_PINBO_CONTRACT_ADDRESS}`}
+			target="_blank"
+			rel="noopener noreferrer">Contract</a
+		>
 		<span class="middot">·</span>
 		<a href="https://github.com/xqxpx/pinbo" target="_blank" rel="noopener noreferrer">GitHub</a>
 		<span class="middot">·</span>

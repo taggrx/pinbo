@@ -30,8 +30,12 @@
 	});
 
 	const reposts = $derived((message.topics ?? []).filter(([type]) => type === TOPIC_TYPE.REPOST));
-	const recipientBytes = $derived((message.topics ?? []).find(([type]) => type === TOPIC_TYPE.ADDRESS)?.[1] ?? null);
-	const recipientAddress = $derived(recipientBytes ? bytesToHex(recipientBytes) as `0x${string}` : null);
+	const recipientBytes = $derived(
+		(message.topics ?? []).find(([type]) => type === TOPIC_TYPE.ADDRESS)?.[1] ?? null
+	);
+	const recipientAddress = $derived(
+		recipientBytes ? (bytesToHex(recipientBytes) as `0x${string}`) : null
+	);
 
 	function formatTime(timestamp: number) {
 		const now = Date.now();
@@ -78,10 +82,14 @@
 <div class="message card" class:clickable={!isPermalink} onclick={handleCardClick}>
 	<div class="message-header">
 		<span class="message-meta">
-				<UserBadge address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
+			<UserBadge address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
 			{#if recipientAddress}
 				<span class="to-arrow">→</span>
-				<UserBadge address={recipientAddress} showFull={true} href={ROUTES.PROFILE(recipientAddress)} />
+				<UserBadge
+					address={recipientAddress}
+					showFull={true}
+					href={ROUTES.PROFILE(recipientAddress)}
+				/>
 			{/if}
 		</span>
 		<span class="timestamp"
@@ -90,8 +98,12 @@
 				: 'BLOCK ' + message.blockNumber}</span
 		>
 	</div>
-	<div class="content-wrapper" class:truncated={truncate && !expanded} bind:this={contentEl}
-		style:font-size="{Math.max(1, 2 - message.message.length / 500)}em">
+	<div
+		class="content-wrapper"
+		class:truncated={truncate && !expanded}
+		bind:this={contentEl}
+		style:font-size="{Math.max(1, 2 - message.message.length / 500)}em"
+	>
 		<MarkdownContent text={message.message} />
 		{#if truncate && !expanded && overflows}
 			<div class="gradient-overlay"></div>
@@ -114,7 +126,12 @@
 		</div>
 	{/each}
 	<div class="message-footer">
-		<a class="footer-action" href={`https://etherscan.io/tx/${message.txHash}`} target="_blank" rel="noopener noreferrer">TX</a>
+		<a
+			class="footer-action"
+			href={`https://etherscan.io/tx/${message.txHash}`}
+			target="_blank"
+			rel="noopener noreferrer">TX</a
+		>
 		<span class="middot">·</span>
 		<button class="footer-action" onclick={handleShare}>SHARE</button>
 		{#if onReply}

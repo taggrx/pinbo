@@ -53,7 +53,10 @@
 				{#if showLogout}
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
 				{:else}
-					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<a href={ROUTES.INBOX_OF(account!)} class="dm-count">[{dmCount}]</a>{/if}
+					<UserBadge address={account!} href={ROUTES.INBOX_OF(account!)} />{#if dmCount > 0}<a
+							href={ROUTES.INBOX_OF(account!)}
+							class="dm-count">[{dmCount}]</a
+						>{/if}
 					{#if !permalinkMessage}
 						<button class="btn post-btn" onclick={handleAction} disabled={showAbout}>
 							{actionLabel}
@@ -66,8 +69,8 @@
 					class="btn post-fab"
 					onclick={handleAction}
 					disabled={showAbout}
-					style:display={showPostForm ? 'none' : ''}
-				>{fabLabel}</button>
+					style:display={showPostForm ? 'none' : ''}>{fabLabel}</button
+				>
 			{/if}
 		{:else}
 			<button class="btn connect" onclick={connect}>CONNECT WALLET</button>

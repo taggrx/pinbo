@@ -23,12 +23,7 @@
 			<span>INBOX OF<UserBadge address={address as `0x${string}`} showFull={true} /></span>
 		{/if}
 	</div>
-	<MessageList
-		{messages}
-		{loading}
-		emptyText="NO MESSAGES ADDRESSED TO THIS ADDRESS."
-		{onReply}
-	/>
+	<MessageList {messages} {loading} emptyText="NO MESSAGES ADDRESSED TO THIS ADDRESS." {onReply} />
 </div>
 
 <style>

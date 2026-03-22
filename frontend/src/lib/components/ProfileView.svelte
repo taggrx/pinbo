@@ -44,12 +44,7 @@
 			</div>
 		{/if}
 	</div>
-	<MessageList
-		{messages}
-		{loading}
-		emptyText="NO MESSAGES FROM THIS ADDRESS."
-		{onReply}
-	/>
+	<MessageList {messages} {loading} emptyText="NO MESSAGES FROM THIS ADDRESS." {onReply} />
 </div>
 
 <style>

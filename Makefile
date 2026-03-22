@@ -1,4 +1,4 @@
-.PHONY: test test-ui test-headed dev build check format install
+.PHONY: test test-ui test-headed dev build check format format-check forge-build forge-test install
 
 # Run the full Playwright e2e suite
 test:
@@ -27,6 +27,11 @@ check:
 # Format frontend source
 format:
 	cd frontend && npm run format
+
+# Check formatting (frontend + e2e) — mirrors CI lint job
+format-check:
+	npm run format:check
+	cd frontend && npm run format:check
 
 # Build the Solidity contract
 forge-build:
