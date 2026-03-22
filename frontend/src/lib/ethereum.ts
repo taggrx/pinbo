@@ -15,6 +15,7 @@ import { wagmiAdapter, appKitModal } from './wallet';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
 import type { Message } from './types';
+import { idbSaveMessage, idbGetMessage, idbGetAllMessages, idbGetMeta, idbSetMeta, idbClear, idbGetEns, idbSetEns } from './idb';
 import pako from 'pako';
 import { encode as msgpackEncode, decode as msgpackDecode } from '@msgpack/msgpack';
 
@@ -63,39 +64,65 @@ export const wrongNetwork = writable(false);
 
 const ensCache = new Map<string, string | null>();
 const ensAvatarCache = new Map<string, string | null>();
+const ensNameInflight = new Map<string, Promise<string | null>>();
+const ensAvatarInflight = new Map<string, Promise<string | null>>();
+
+let ensClient: ReturnType<typeof createPublicClient> | null = null;
 
 function getEnsClient() {
+	if (ensClient) return ensClient;
 	const ensRpc = import.meta.env.VITE_ENS_RPC;
 	if (!ensRpc) return null;
-	return createPublicClient({ chain: mainnet, transport: http(ensRpc) });
+	ensClient = createPublicClient({ chain: mainnet, transport: http(ensRpc, { batch: true }) });
+	return ensClient;
 }
 
 export async function resolveEnsName(address: `0x${string}`): Promise<string | null> {
 	const client = getEnsClient();
 	if (!client) return null;
 	if (ensCache.has(address)) return ensCache.get(address) ?? null;
-	let name: string | null;
-	try {
-		name = await client.getEnsName({ address }) ?? null;
-	} catch {
-		name = null;
-	}
-	ensCache.set(address, name);
-	return name;
+	if (ensNameInflight.has(address)) return ensNameInflight.get(address)!;
+	const promise = (async () => {
+		try {
+			const cached = await idbGetEns(`name:${address}`);
+			if (cached !== undefined) { ensCache.set(address, cached); return cached; }
+			const name = await client.getEnsName({ address }) ?? null;
+			ensCache.set(address, name);
+			idbSetEns(`name:${address}`, name).catch(() => {});
+			return name;
+		} catch {
+			ensCache.set(address, null);
+			return null;
+		} finally {
+			ensNameInflight.delete(address);
+		}
+	})();
+	ensNameInflight.set(address, promise);
+	return promise;
 }
 
 export async function resolveEnsAvatar(name: string): Promise<string | null> {
 	const client = getEnsClient();
 	if (!client) return null;
 	if (ensAvatarCache.has(name)) return ensAvatarCache.get(name) ?? null;
-	let avatar: string | null;
-	try {
-		avatar = await client.getEnsAvatar({ name }) ?? null;
-	} catch {
-		avatar = null;
-	}
-	ensAvatarCache.set(name, avatar);
-	return avatar;
+	if (ensAvatarInflight.has(name)) return ensAvatarInflight.get(name)!;
+	const promise = (async () => {
+		try {
+			const cached = await idbGetEns(`avatar:${name}`);
+			if (cached !== undefined) { ensAvatarCache.set(name, cached); return cached; }
+			const avatar = await client.getEnsAvatar({ name }) ?? null;
+			ensAvatarCache.set(name, avatar);
+			idbSetEns(`avatar:${name}`, avatar).catch(() => {});
+			return avatar;
+		} catch {
+			ensAvatarCache.set(name, null);
+			return null;
+		} finally {
+			ensAvatarInflight.delete(name);
+		}
+	})();
+	ensAvatarInflight.set(name, promise);
+	return promise;
 }
 
 const LS_RPC_KEY = 'pinbo_rpc';
@@ -154,13 +181,19 @@ export async function getAddressInfo(address: `0x${string}`): Promise<AddressInf
 	};
 }
 
+let feeCache: { value: bigint; ts: number } | null = null;
+const FEE_TTL = 5 * 60 * 1000;
+
 export async function getFee(): Promise<bigint> {
-	return (await getPublicClient().readContract({
+	if (feeCache && Date.now() - feeCache.ts < FEE_TTL) return feeCache.value;
+	const value = (await getPublicClient().readContract({
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		functionName: 'fee',
 		args: [],
 	})) as bigint;
+	feeCache = { value, ts: Date.now() };
+	return value;
 }
 
 
@@ -203,6 +236,7 @@ function logToMessage(log: any): Message {
 		txHash: log.transactionHash,
 	};
 	messageCache.set(msg.txHash, msg);
+	idbSaveMessage(msg);
 	return msg;
 }
 
@@ -252,6 +286,8 @@ async function fetchPages(
 export function createMessageLoader() {
 	let oldestBlockQueried: bigint | null = null;
 	let latestBlockQueried: bigint | null = null;
+	let idbMsgs: Message[] = [];
+	let idbOffset = 0;
 
 	async function loadInitialStreaming(
 		targetCount = 50,
@@ -259,20 +295,59 @@ export function createMessageLoader() {
 	): Promise<{ messages: Message[]; hasMore: boolean }> {
 		const startBlock = cachedLatestBlock;
 
-		const { messages, nextBlock } = await fetchPages(startBlock, CONTRACT_DEPLOY_BLOCK, targetCount, undefined, onPage);
-		oldestBlockQueried = nextBlock;
-		latestBlockQueried = startBlock;
+		// Serve IDB messages immediately for instant display
+		let newestCachedBlock: bigint | null = null;
+		let oldestCachedBlock: bigint | null = null;
+		try {
+			[idbMsgs, newestCachedBlock, oldestCachedBlock] = await Promise.all([
+				idbGetAllMessages(),
+				idbGetMeta('newestBlock').then(v => v !== null ? BigInt(v) : null),
+				idbGetMeta('oldestBlock').then(v => v !== null ? BigInt(v) : null),
+			]);
+			if (idbMsgs.length > 0) {
+				onPage?.(idbMsgs.slice(0, targetCount));
+				idbOffset = Math.min(targetCount, idbMsgs.length);
+			}
+		} catch { /* IDB unavailable, fall through to RPC-only */ }
 
-		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
+		// Fetch from RPC only the blocks newer than what's already cached
+		const fetchStop = newestCachedBlock !== null ? newestCachedBlock + 1n : CONTRACT_DEPLOY_BLOCK;
+		if (startBlock >= fetchStop) {
+			const rpcTarget = newestCachedBlock !== null ? Infinity : targetCount;
+			const { messages: _, nextBlock } = await fetchPages(startBlock, fetchStop, rpcTarget, undefined, onPage);
+			try {
+				await idbSetMeta('newestBlock', Number(startBlock));
+				if (oldestCachedBlock === null) await idbSetMeta('oldestBlock', Number(nextBlock));
+			} catch {}
+			oldestBlockQueried = oldestCachedBlock ?? nextBlock;
+		} else {
+			oldestBlockQueried = oldestCachedBlock ?? startBlock;
+		}
+
+		latestBlockQueried = startBlock;
+		return {
+			messages: idbMsgs,
+			hasMore: idbOffset < idbMsgs.length || (oldestBlockQueried ?? 0n) > CONTRACT_DEPLOY_BLOCK,
+		};
 	}
 
 	async function loadMore(targetCount = 50): Promise<{ messages: Message[]; hasMore: boolean }> {
+		// Serve remaining IDB messages before going to RPC
+		if (idbOffset < idbMsgs.length) {
+			const page = idbMsgs.slice(idbOffset, idbOffset + targetCount);
+			idbOffset += page.length;
+			return {
+				messages: page,
+				hasMore: idbOffset < idbMsgs.length || (oldestBlockQueried ?? 0n) > CONTRACT_DEPLOY_BLOCK,
+			};
+		}
+
 		if (!oldestBlockQueried) throw new Error('Must call loadInitial first');
 		if (oldestBlockQueried <= CONTRACT_DEPLOY_BLOCK) return { messages: [], hasMore: false };
 
 		const { messages, nextBlock } = await fetchPages(oldestBlockQueried, CONTRACT_DEPLOY_BLOCK, targetCount);
+		try { await idbSetMeta('oldestBlock', Number(nextBlock)); } catch {}
 		oldestBlockQueried = nextBlock;
-
 		return { messages, hasMore: oldestBlockQueried > CONTRACT_DEPLOY_BLOCK };
 	}
 
@@ -287,6 +362,25 @@ export async function getInboxMessages(
 	address: `0x${string}`,
 	onPage?: (messages: Message[]) => void
 ): Promise<Message[]> {
+	// Fast path: if the main feed has already scanned all blocks, filter IDB locally.
+	// Falls back to RPC scan if cache is incomplete (e.g. first visit or after idbClear).
+	try {
+		const oldestBlock = await idbGetMeta('oldestBlock');
+		if (oldestBlock !== null && BigInt(oldestBlock) <= CONTRACT_DEPLOY_BLOCK) {
+			const all = await idbGetAllMessages();
+			const filtered = all
+				.filter((m) =>
+					(m.topics ?? []).some(
+						([type, bytes]) =>
+							type === TOPIC_TYPE.ADDRESS &&
+							bytesToHex(bytes as Uint8Array).toLowerCase() === address.toLowerCase()
+					)
+				)
+				.sort((a, b) => b.timestamp - a.timestamp);
+			onPage?.(filtered);
+			return filtered;
+		}
+	} catch {}
 	const client = getPublicClient();
 	let currentBlock = cachedLatestBlock;
 	const collected: Message[] = [];
@@ -322,6 +416,19 @@ export async function getMessagesByAddress(
 	address: `0x${string}`,
 	onPage?: (messages: Message[]) => void
 ): Promise<Message[]> {
+	// Fast path: if the main feed has already scanned all blocks, filter IDB locally.
+	// Falls back to RPC scan if cache is incomplete (e.g. first visit or after idbClear).
+	try {
+		const oldestBlock = await idbGetMeta('oldestBlock');
+		if (oldestBlock !== null && BigInt(oldestBlock) <= CONTRACT_DEPLOY_BLOCK) {
+			const all = await idbGetAllMessages();
+			const filtered = all
+				.filter((m) => m.sender.toLowerCase() === address.toLowerCase())
+				.sort((a, b) => b.timestamp - a.timestamp);
+			onPage?.(filtered);
+			return filtered;
+		}
+	} catch {}
 	const { messages } = await fetchPages(cachedLatestBlock, CONTRACT_DEPLOY_BLOCK, Infinity, { sender: address }, onPage);
 	return messages;
 }
@@ -348,6 +455,7 @@ export function connect() {
 }
 
 export function disconnect() {
+	idbClear().catch(() => {});
 	wagmiDisconnect(wagmiAdapter.wagmiConfig);
 }
 
@@ -387,6 +495,7 @@ export function watchMessages(callback: (message: Message) => void) {
 		address: pinboContractAddress,
 		abi: pinboAbi,
 		eventName: 'MessagePosted',
+		pollingInterval: 60_000,
 		onLogs: (logs) => logs.forEach((log) => callback(logToMessage(log))),
 	});
 }
@@ -396,26 +505,38 @@ export async function waitForMessage(txHash: `0x${string}`) {
 	return getMessageByTxHash(txHash);
 }
 
+const messageByTxHashInflight = new Map<string, Promise<Message>>();
+
 export async function getMessageByTxHash(txHash: `0x${string}`) {
 	if (messageCache.has(txHash)) return messageCache.get(txHash)!;
-	const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
-	const log = receipt.logs.find(
-		(l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase()
-	);
-	if (!log) throw new Error('Message not found');
-
-	const block = await getPublicClient().getBlock({ blockNumber: log.blockNumber });
-	const decoded = decodeEventLog({ abi: pinboAbi, data: log.data, topics: log.topics });
-	const { message, topics } = decodeMessage(hexToBytes(decoded.args.message as `0x${string}`));
-
-	const msg: Message = {
-		sender: decoded.args.sender as `0x${string}`,
-		message,
-		topics,
-		timestamp: Number(block.timestamp) * 1000,
-		blockNumber: log.blockNumber,
-		txHash: log.transactionHash,
-	};
-	messageCache.set(txHash, msg);
-	return msg;
+	if (messageByTxHashInflight.has(txHash)) return messageByTxHashInflight.get(txHash)!;
+	const promise = (async () => {
+		try {
+			const cached = await idbGetMessage(txHash);
+			if (cached) { messageCache.set(txHash, cached); return cached; }
+			const receipt = await getPublicClient().getTransactionReceipt({ hash: txHash });
+			const log = receipt.logs.find(
+				(l) => l.address.toLowerCase() === pinboContractAddress.toLowerCase()
+			);
+			if (!log) throw new Error('Message not found');
+			const block = await getPublicClient().getBlock({ blockNumber: log.blockNumber });
+			const decoded = decodeEventLog({ abi: pinboAbi, data: log.data, topics: log.topics });
+			const { message, topics } = decodeMessage(hexToBytes(decoded.args.message as `0x${string}`));
+			const msg: Message = {
+				sender: decoded.args.sender as `0x${string}`,
+				message,
+				topics,
+				timestamp: Number(block.timestamp) * 1000,
+				blockNumber: log.blockNumber,
+				txHash: log.transactionHash,
+			};
+			messageCache.set(txHash, msg);
+			idbSaveMessage(msg);
+			return msg;
+		} finally {
+			messageByTxHashInflight.delete(txHash);
+		}
+	})();
+	messageByTxHashInflight.set(txHash, promise);
+	return promise;
 }

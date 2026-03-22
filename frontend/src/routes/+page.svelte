@@ -75,6 +75,11 @@
 	let inboxAddress = $state<string | null>(null);
 	let inboxMessages = $state<MessageType[]>([]);
 	let inboxLoading = $state(false);
+
+	type ProfileCacheEntry = { messages: MessageType[]; info: AddressInfo | null; ts: number };
+	const profileCache = new Map<string, ProfileCacheEntry>();
+	const inboxCache = new Map<string, { messages: MessageType[]; ts: number }>();
+	const VIEW_CACHE_TTL = 5 * 60 * 1000;
 	let fee = $state<bigint | null>(null);
 	let toAddress = $state('');
 	let toAddressLocked = $state(false);
@@ -180,33 +185,50 @@
 					permalinkLoading = false;
 				}
 			} else if (profileMatch) {
-				profileAddress = profileMatch[1];
-				profileLoading = true;
-				try {
-					await Promise.all([
-						getAddressInfo(profileMatch[1] as `0x${string}`).then((info) => { profileInfo = info; }),
-						getMessagesByAddress(profileMatch[1] as `0x${string}`, (page) => {
-							profileMessages = [...profileMessages, ...page];
-						}),
-					]);
-				} catch (err) {
-					handleError(err);
-					profileMessages = [];
-				} finally {
-					profileLoading = false;
+				const addr = profileMatch[1];
+				profileAddress = addr;
+				const profKey = addr.toLowerCase();
+				const profCached = profileCache.get(profKey);
+				if (profCached && Date.now() - profCached.ts < VIEW_CACHE_TTL) {
+					profileMessages = profCached.messages;
+					profileInfo = profCached.info;
+				} else {
+					profileLoading = true;
+					try {
+						await Promise.all([
+							getAddressInfo(addr as `0x${string}`).then((info) => { profileInfo = info; }),
+							getMessagesByAddress(addr as `0x${string}`, (page) => {
+								profileMessages = [...profileMessages, ...page];
+							}),
+						]);
+						profileCache.set(profKey, { messages: profileMessages, info: profileInfo, ts: Date.now() });
+					} catch (err) {
+						handleError(err);
+						profileMessages = [];
+					} finally {
+						profileLoading = false;
+					}
 				}
 			} else if (inboxMatch) {
-				inboxAddress = inboxMatch[1];
-				inboxLoading = true;
-				try {
-					await getInboxMessages(inboxMatch[1] as `0x${string}`, (page) => {
-						inboxMessages = [...inboxMessages, ...page];
-					});
-				} catch (err) {
-					handleError(err);
-					inboxMessages = [];
-				} finally {
-					inboxLoading = false;
+				const addr = inboxMatch[1];
+				inboxAddress = addr;
+				const inboxKey = addr.toLowerCase();
+				const inboxCached = inboxCache.get(inboxKey);
+				if (inboxCached && Date.now() - inboxCached.ts < VIEW_CACHE_TTL) {
+					inboxMessages = inboxCached.messages;
+				} else {
+					inboxLoading = true;
+					try {
+						await getInboxMessages(addr as `0x${string}`, (page) => {
+							inboxMessages = [...inboxMessages, ...page];
+						});
+						inboxCache.set(inboxKey, { messages: inboxMessages, ts: Date.now() });
+					} catch (err) {
+						handleError(err);
+						inboxMessages = [];
+					} finally {
+						inboxLoading = false;
+					}
 				}
 			}
 		}
@@ -221,11 +243,14 @@
 		try {
 			await refreshLatestBlock();
 			blockRefreshInterval = setInterval(() => refreshLatestBlock().catch(() => {}), 60_000);
+			const seen = new Set<string>();
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(50, (pageMessages: any[]) => {
+				const fresh = pageMessages.filter((m: any) => !seen.has(m.txHash));
+				fresh.forEach((m: any) => seen.add(m.txHash));
 				if (messages.length === 0) {
-					messages = pageMessages;
+					messages = fresh;
 				} else {
-					messages = [...messages, ...pageMessages];
+					messages = [...messages, ...fresh].sort((a: any, b: any) => b.timestamp - a.timestamp);
 				}
 			});
 			hasMore = more;
