@@ -54,6 +54,9 @@
 		return getMessageByTxHash(txHash);
 	}
 
+	// window.location.hash is not reactive, but that's fine: each Message instance is
+	// created for a specific hash route and won't survive a navigation, so this only
+	// needs to be correct at mount time.
 	const isPermalink = $derived(window.location.hash === ROUTES.MESSAGE(message.txHash));
 
 	function handleCardClick(e: MouseEvent) {
