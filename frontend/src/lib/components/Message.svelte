@@ -102,7 +102,7 @@
 		class="content-wrapper"
 		class:truncated={truncate && !expanded}
 		bind:this={contentEl}
-		style:font-size="{Math.max(1, 2 - message.message.length / 500)}em"
+		style:font-size="{Math.max(1, 1.5 - message.message.length / 500)}em"
 	>
 		<MarkdownContent text={message.message} />
 		{#if truncate && !expanded && overflows}
