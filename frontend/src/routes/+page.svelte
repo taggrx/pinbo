@@ -441,6 +441,13 @@
 			/>
 		{:else}
 			<div class="messages-section" in:fade={{ duration: 150 }}>
+				{#if !$isConnected}
+					<p class="tagline">
+						Ethereum's censorship-resistant, open-source, persistent bulletin board.<br /><a
+							href={ROUTES.ABOUT}>Learn more.</a
+						>
+					</p>
+				{/if}
 				<MessageList
 					{messages}
 					{loading}
@@ -474,6 +481,20 @@
 </div>
 
 <style>
+	.tagline {
+		color: var(--text-secondary);
+		font-size: 1.4rem;
+		font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+		font-weight: 300;
+		text-align: center;
+		margin: 3.5rem 0 4rem;
+	}
+	.tagline a {
+		color: var(--primary);
+	}
+	.tagline a:hover {
+		opacity: 0.8;
+	}
 	.loading {
 		text-align: center;
 		padding: 2rem;

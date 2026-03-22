@@ -44,11 +44,10 @@
 			<img src="favicon.svg" width="26" height="26" alt="" aria-hidden="true" />
 			PINBO
 		</button>
+		<a href={ROUTES.ABOUT} class="about-btn" aria-label="About"><sup>?</sup></a>
 	</h1>
 	<div class="wallet-section">
-		<a href={ROUTES.ABOUT} class="about-link">ABOUT</a>
 		{#if isConnected}
-			<span class="middot">·</span>
 			<div class="connected">
 				{#if showLogout}
 					<button class="btn post-btn btn-logout" onclick={disconnect}>LOGOUT</button>
@@ -131,12 +130,17 @@
 	.dm-count:hover {
 		color: var(--primary);
 	}
-	.about-link {
+	.about-btn {
 		color: var(--text-secondary);
 		text-decoration: none;
-		font-size: var(--text-sm);
+		font-size: 1.1rem;
+		font-weight: 700;
+		line-height: 1;
+		margin-left: 0.35rem;
+		opacity: 0.6;
 	}
-	.about-link:hover {
+	.about-btn:hover {
+		opacity: 1;
 		color: var(--primary);
 	}
 	.post-btn {
