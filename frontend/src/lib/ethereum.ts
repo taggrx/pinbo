@@ -10,7 +10,8 @@ import {
 	formatEther,
 } from 'viem';
 import { mainnet } from 'viem/chains';
-import { watchAccount, getWalletClient, disconnect as wagmiDisconnect } from '@wagmi/core';
+import { watchAccount, getWalletClient, connect as wagmiConnect, disconnect as wagmiDisconnect } from '@wagmi/core';
+import { injected } from '@wagmi/connectors';
 import { wagmiAdapter, appKitModal } from './wallet';
 import { pinboChain } from './chains';
 import { pinboContractAddress, pinboAbi } from './contract';
@@ -532,8 +533,13 @@ export function initWallet() {
 	});
 }
 
-/** Opens the AppKit wallet connection modal. */
+/** Opens the AppKit wallet connection modal. In E2E test mode, bypasses the modal
+ *  and connects directly via the injected window.ethereum provider. */
 export function connect() {
+	if (import.meta.env.VITE_E2E) {
+		wagmiConnect(wagmiAdapter.wagmiConfig, { connector: injected() }).catch(console.error);
+		return;
+	}
 	appKitModal.open();
 }
 
