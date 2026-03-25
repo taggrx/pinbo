@@ -483,7 +483,7 @@
 <style>
 	.tagline {
 		color: var(--text-secondary);
-		font-size: 1.4rem;
+		font-size: 1.65rem;
 		font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 		font-weight: 300;
 		text-align: center;
