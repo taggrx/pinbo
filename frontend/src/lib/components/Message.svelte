@@ -66,6 +66,7 @@
 	function handleCardClick(e: MouseEvent) {
 		if (isPermalink) return;
 		if ((e.target as HTMLElement).closest('a, button')) return;
+		if (window.getSelection()?.toString()) return;
 		window.location.hash = ROUTES.MESSAGE(message.txHash);
 	}
 
