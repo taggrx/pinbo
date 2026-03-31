@@ -51,10 +51,6 @@
 		text-align: center;
 		padding: 2rem;
 		color: var(--text-secondary);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 200px;
 	}
 	.messages-list {
 		display: flex;

@@ -386,13 +386,6 @@
 		onMessageTo={handleMessageTo}
 	/>
 
-	<ErrorBanner
-		{globalError}
-		wrongNetwork={$wrongNetwork}
-		chainName={pinboChain.name}
-		onDismiss={() => (globalError = null)}
-	/>
-
 	<main>
 		{#if pendingTxHash && $isConnected}
 			<div class="loading">LOADING...</div>
@@ -459,6 +452,12 @@
 						>
 					</p>
 				{/if}
+				<ErrorBanner
+					{globalError}
+					wrongNetwork={$wrongNetwork}
+					chainName={pinboChain.name}
+					onDismiss={() => (globalError = null)}
+				/>
 				{#if syncStatus}
 					<div class="sync-banner" transition:fade={{ duration: 150 }}>
 						{syncStatus === 'checking' ? 'Checking for new messages…' : 'Loading new messages…'}
@@ -498,10 +497,9 @@
 
 <style>
 	.sync-banner {
-		background: var(--surface-alt);
 		color: var(--text-secondary);
-		padding: 0.75rem 1rem;
-		border-radius: 0.375rem;
+		text-align: center;
+		padding: 0.75rem 0;
 		margin-bottom: 1rem;
 		font-size: var(--text-sm);
 	}
@@ -523,10 +521,6 @@
 		text-align: center;
 		padding: 2rem;
 		color: var(--text-secondary);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 200px;
 	}
 	.rpc-settings {
 		background: none;
