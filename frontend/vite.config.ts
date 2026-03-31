@@ -1,13 +1,17 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
 import { execSync } from 'child_process';
 
 const gitTag =
 	process.env.GIT_TAG ||
 	execSync('git describe --tags --abbrev=0 2>/dev/null || echo "untagged"').toString().trim();
 
-export default defineConfig({
-	plugins: [sveltekit()],
+export default defineConfig(({ command }) => ({
+	plugins: [
+		sveltekit(),
+		...(command === 'build' ? [cssInjectedByJsPlugin({ relativeCSSInjection: true })] : []),
+	],
 	define: {
 		__GIT_TAG__: JSON.stringify(gitTag),
 	},
@@ -20,4 +24,4 @@ export default defineConfig({
 		strictPort: true,
 		cors: true,
 	},
-});
+}));
