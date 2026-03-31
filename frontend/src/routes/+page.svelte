@@ -21,6 +21,7 @@
 		setCustomRpc,
 		type AddressInfo,
 	} from '$lib/ethereum';
+	import { idbGetMeta } from '$lib/idb';
 	import { hexToBytes, bytesToHex, isAddress } from 'viem';
 	import { fade } from 'svelte/transition';
 	import { ROUTES, type Message as MessageType } from '$lib/types';
@@ -61,6 +62,7 @@
 	let showPostForm = $state(false);
 	let showAbout = $state(false);
 	let globalError = $state<string | null>(null);
+	let syncStatus = $state<'checking' | 'loading' | null>('checking');
 
 	function handleError(err: unknown) {
 		console.error(err);
@@ -253,8 +255,16 @@
 			.then((f) => (fee = f))
 			.catch(handleError);
 		try {
-			await refreshLatestBlock();
+			const [newestCachedMeta, latestBlock] = await Promise.all([
+				idbGetMeta('newestBlock').catch(() => null),
+				refreshLatestBlock(),
+			]);
 			blockRefreshInterval = setInterval(() => refreshLatestBlock().catch(() => {}), 60_000);
+			if (newestCachedMeta !== null && latestBlock > BigInt(newestCachedMeta)) {
+				syncStatus = 'loading';
+			} else {
+				syncStatus = null;
+			}
 			const seen = new Set<string>();
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(
 				50,
@@ -273,6 +283,7 @@
 			handleError(err);
 		} finally {
 			loading = false;
+			syncStatus = null;
 		}
 
 		unwatch = watchMessages((message) => {
@@ -448,6 +459,11 @@
 						>
 					</p>
 				{/if}
+				{#if syncStatus}
+					<div class="sync-banner" transition:fade={{ duration: 150 }}>
+						{syncStatus === 'checking' ? 'Checking for new messages…' : 'Loading new messages…'}
+					</div>
+				{/if}
 				<MessageList
 					{messages}
 					{loading}
@@ -481,6 +497,14 @@
 </div>
 
 <style>
+	.sync-banner {
+		background: var(--surface-alt);
+		color: var(--text-secondary);
+		padding: 0.75rem 1rem;
+		border-radius: 0.375rem;
+		margin-bottom: 1rem;
+		font-size: var(--text-sm);
+	}
 	.tagline {
 		color: var(--text-secondary);
 		font-size: 1.65rem;

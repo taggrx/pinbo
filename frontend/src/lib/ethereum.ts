@@ -277,8 +277,9 @@ async function getLatestMessageBlock(): Promise<bigint> {
 let cachedLatestBlock: bigint = 0n;
 
 /** Refreshes cachedLatestBlock from the contract. Called on mount and every 60s. */
-export async function refreshLatestBlock(): Promise<void> {
+export async function refreshLatestBlock(): Promise<bigint> {
 	cachedLatestBlock = await getLatestMessageBlock();
+	return cachedLatestBlock;
 }
 
 const MESSAGE_EVENT = parseAbiItem(
