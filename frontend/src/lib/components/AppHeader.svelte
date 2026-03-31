@@ -44,7 +44,7 @@
 			<img src="favicon.svg" width="26" height="26" alt="" aria-hidden="true" />
 			PINBO
 		</button>
-		<a href={ROUTES.ABOUT} class="about-btn" aria-label="About"><sup>?</sup></a>
+		<a href={ROUTES.ABOUT} class="about-btn" aria-label="About"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><text x="8" y="11.5" text-anchor="middle" fill="currentColor" font-size="10" font-weight="700" font-family="system-ui, sans-serif">?</text></svg></a>
 	</h1>
 	<div class="wallet-section">
 		{#if isConnected}
@@ -89,11 +89,15 @@
 	.logo {
 		font-size: 1.4rem;
 		font-weight: 800;
-		color: var(--orange);
+		color: #a7c080;
 		margin: 0;
 		font-family: system-ui, sans-serif;
 		display: flex;
 		align-items: center;
+	}
+	.logo button img,
+	.logo button {
+		filter: drop-shadow(0 0 6px rgba(167, 192, 128, 0.6));
 	}
 	.logo button {
 		display: inline-flex;
@@ -133,10 +137,10 @@
 	.about-btn {
 		color: var(--text-secondary);
 		text-decoration: none;
-		font-size: 1.1rem;
-		font-weight: 700;
-		line-height: 1;
-		margin-left: 0.35rem;
+		line-height: 0;
+		margin-left: 0.6rem;
+		display: inline-flex;
+		align-items: center;
 		opacity: 0.6;
 	}
 	.about-btn:hover {
