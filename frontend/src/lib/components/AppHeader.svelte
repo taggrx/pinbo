@@ -96,7 +96,8 @@
 	}
 	.logo button img,
 	.logo button {
-		filter: drop-shadow(0 0 6px rgba(167, 192, 128, 0.6));
+		filter: brightness(1.3) drop-shadow(0 0 6px rgba(167, 192, 128, 0.6));
+		transition: filter 0.15s ease;
 	}
 	.logo button {
 		display: inline-flex;
@@ -111,7 +112,7 @@
 		line-height: 1;
 	}
 	.logo button:hover {
-		opacity: 0.8;
+		filter: brightness(1.7) drop-shadow(0 0 8px rgba(167, 192, 128, 0.8));
 	}
 	.wallet-section {
 		display: flex;

@@ -35,7 +35,7 @@
 		{/each}
 	</div>
 	{#if loading}
-		<div class="loading">LOADING...</div>
+		<div class="loading">Loading previous messages...</div>
 	{:else if hasMore && onLoadMore}
 		<div class="load-more">
 			<button class="btn" onclick={onLoadMore} disabled={loadingMore}>
