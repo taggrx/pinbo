@@ -24,8 +24,9 @@ build:
 check:
 	cd frontend && npm run check
 
-# Format frontend source
+# Format frontend source and e2e tests
 format:
+	npm run format
 	cd frontend && npm run format
 
 # Check formatting (frontend + e2e) — mirrors CI lint job

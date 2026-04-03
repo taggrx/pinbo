@@ -23,7 +23,7 @@
 </script>
 
 {#if loading && messages.length === 0}
-	<div class="loading">LOADING...</div>
+	<div class="loading">Loading…</div>
 {:else if messages.length === 0}
 	<div class="empty">{emptyText}</div>
 {:else}
@@ -35,18 +35,17 @@
 		{/each}
 	</div>
 	{#if loading}
-		<div class="loading">Loading previous messages...</div>
+		<div class="loading">Loading previous messages…</div>
 	{:else if hasMore && onLoadMore}
 		<div class="load-more">
 			<button class="btn" onclick={onLoadMore} disabled={loadingMore}>
-				{loadingMore ? 'LOADING...' : 'MORE'}
+				{loadingMore ? 'Loading…' : 'MORE'}
 			</button>
 		</div>
 	{/if}
 {/if}
 
 <style>
-	.loading,
 	.empty {
 		text-align: center;
 		padding: 2rem;

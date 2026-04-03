@@ -63,11 +63,18 @@
 	// needs to be correct at mount time.
 	const isPermalink = $derived(window.location.hash === ROUTES.MESSAGE(message.txHash));
 
-	function handleCardClick(e: MouseEvent) {
+	function handleCardClick(e: MouseEvent | KeyboardEvent) {
 		if (isPermalink) return;
 		if ((e.target as HTMLElement).closest('a, button')) return;
 		if (window.getSelection()?.toString()) return;
 		window.location.hash = ROUTES.MESSAGE(message.txHash);
+	}
+
+	function handleCardKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			handleCardClick(e);
+		}
 	}
 
 	async function handleShare() {
@@ -80,7 +87,7 @@
 	}
 </script>
 
-<div class="message card" class:clickable={!isPermalink} onclick={handleCardClick}>
+{#snippet cardContent()}
 	<div class="message-header">
 		<span class="message-meta">
 			<UserBadge address={message.sender} showFull={true} href={ROUTES.PROFILE(message.sender)} />
@@ -118,7 +125,7 @@
 	{#each reposts as [, bytes]}
 		<div class="repost">
 			{#await fetchRepost(bytes)}
-				<div class="repost-loading">loading repost…</div>
+				<div class="repost-loading">Loading repost…</div>
 			{:then reposted}
 				<Message message={reposted} truncate={false} />
 			{:catch}
@@ -140,7 +147,23 @@
 			<button class="footer-action" onclick={() => onReply!(message)}>REPLY</button>
 		{/if}
 	</div>
-</div>
+{/snippet}
+
+{#if isPermalink}
+	<div class="message card">
+		{@render cardContent()}
+	</div>
+{:else}
+	<div
+		class="message card clickable"
+		role="button"
+		tabindex="0"
+		onclick={handleCardClick}
+		onkeydown={handleCardKeydown}
+	>
+		{@render cardContent()}
+	</div>
+{/if}
 
 <style>
 	.message {

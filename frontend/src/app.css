@@ -175,3 +175,9 @@ a:hover {
 	padding: 1rem;
 	margin-bottom: 1rem;
 }
+
+.loading {
+	text-align: center;
+	padding: 2rem;
+	color: var(--text-secondary);
+}

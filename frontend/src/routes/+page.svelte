@@ -16,6 +16,7 @@
 		createMessageLoader,
 		getFee,
 		refreshLatestBlock,
+		checkChainId,
 		TOPIC_TYPE,
 		getCustomRpc,
 		setCustomRpc,
@@ -25,6 +26,7 @@
 	import { hexToBytes, bytesToHex, isAddress } from 'viem';
 	import { fade } from 'svelte/transition';
 	import { ROUTES, type Message as MessageType } from '$lib/types';
+	import { shortAddr } from '$lib/utils';
 	import { pinboChain } from '$lib/chains';
 	import readme from '../../../README.md?raw';
 	import AppHeader from '$lib/components/AppHeader.svelte';
@@ -36,9 +38,39 @@
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 
+	// --- Route patterns ---
+	const PERMALINK_RE = /^#\/p\/(0x[a-fA-F0-9]{64})$/;
+	const PROFILE_RE = /^#\/a\/(0x[a-fA-F0-9]{40})$/i;
+	const INBOX_RE = /^#\/i\/(0x[a-fA-F0-9]{40})$/i;
+
+	// --- Global UI ---
+	let globalError = $state<string | null>(null);
+	let showAbout = $state(false);
+
+	function handleError(err: unknown) {
+		console.error(err);
+		globalError = ((err as Error).message ?? String(err)).split('\n')[0];
+	}
+
+	// --- Feed state ---
 	let messages = $state<MessageType[]>([]);
+	let loading = $state(true);
+	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
+	let hasMore = $state(false);
+	let loadingMore = $state(false);
+	let syncStatus = $state<'checking' | 'loading' | null>('checking');
+
+	// --- Post form ---
 	const DRAFT_KEY = 'pinbo_draft';
 	let newMessage = $state(browser ? (localStorage.getItem(DRAFT_KEY) ?? '') : '');
+	let posting = $state(false);
+	let pendingTxHash = $state<string | null>(null);
+	let showPostForm = $state(false);
+	let replyTo = $state<MessageType | null>(null);
+	let pendingReply = false;
+	let fee = $state<bigint | null>(null);
+	let toAddress = $state('');
+	let toAddressLocked = $state(false);
 
 	$effect(() => {
 		if (newMessage) {
@@ -48,43 +80,31 @@
 		}
 	});
 
-	let posting = $state(false);
-	let pendingTxHash = $state<string | null>(null);
-	let loading = $state(true);
-	let unwatch: (() => void) | null = null;
-	let unwatchWallet: (() => void) | null = null;
-	let blockRefreshInterval: ReturnType<typeof setInterval> | null = null;
+	// --- Permalink state ---
 	let permalinkMessage = $state<MessageType | null>(null);
 	let permalinkLoading = $state(false);
-	let messageLoader: ReturnType<typeof createMessageLoader> | null = null;
-	let hasMore = $state(false);
-	let loadingMore = $state(false);
-	let showPostForm = $state(false);
-	let showAbout = $state(false);
-	let globalError = $state<string | null>(null);
-	let syncStatus = $state<'checking' | 'loading' | null>('checking');
 
-	function handleError(err: unknown) {
-		console.error(err);
-		globalError = ((err as Error).message ?? String(err)).split('\n')[0];
-	}
-	let replyTo = $state<MessageType | null>(null);
-	let pendingReply = false;
+	// --- Profile state ---
 	let profileAddress = $state<string | null>(null);
 	let profileMessages = $state<MessageType[]>([]);
 	let profileLoading = $state(false);
 	let profileInfo = $state<AddressInfo | null>(null);
+
+	// --- Inbox state ---
 	let inboxAddress = $state<string | null>(null);
 	let inboxMessages = $state<MessageType[]>([]);
 	let inboxLoading = $state(false);
 
+	// --- View caches ---
 	type ProfileCacheEntry = { messages: MessageType[]; info: AddressInfo | null; ts: number };
 	const profileCache = new Map<string, ProfileCacheEntry>();
 	const inboxCache = new Map<string, { messages: MessageType[]; ts: number }>();
 	const VIEW_CACHE_TTL = 5 * 60 * 1000;
-	let fee = $state<bigint | null>(null);
-	let toAddress = $state('');
-	let toAddressLocked = $state(false);
+
+	// --- Lifecycle refs ---
+	let unwatch: (() => void) | null = null;
+	let unwatchWallet: (() => void) | null = null;
+	let blockRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
 	const isOwnInbox = $derived(
 		!!inboxAddress && !!$account && inboxAddress.toLowerCase() === $account.toLowerCase()
@@ -102,10 +122,6 @@
 			: []
 	);
 	const dmCount = $derived(dmMessages.length);
-
-	function shortAddr(addr: string) {
-		return addr.slice(0, 6) + '…' + addr.slice(-4);
-	}
 
 	function resetPostForm() {
 		replyTo = null;
@@ -149,9 +165,82 @@
 		}
 	}
 
+	async function loadPermalink(txHash: `0x${string}`) {
+		permalinkLoading = true;
+		try {
+			permalinkMessage = await getMessageByTxHash(txHash);
+			if (pendingReply && permalinkMessage) {
+				pendingReply = false;
+				replyTo = permalinkMessage;
+				showPostForm = true;
+				await tick();
+				document
+					.querySelector('.post-section')
+					?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
+		} catch (err) {
+			handleError(err);
+			permalinkMessage = null;
+		} finally {
+			permalinkLoading = false;
+		}
+	}
+
+	async function loadProfile(addr: string) {
+		profileAddress = addr;
+		const key = addr.toLowerCase();
+		const cached = profileCache.get(key);
+		if (cached && Date.now() - cached.ts < VIEW_CACHE_TTL) {
+			profileMessages = cached.messages;
+			profileInfo = cached.info;
+			return;
+		}
+		profileLoading = true;
+		try {
+			await Promise.all([
+				getAddressInfo(addr as `0x${string}`).then((info) => {
+					profileInfo = info;
+				}),
+				getMessagesByAddress(addr as `0x${string}`, (page) => {
+					profileMessages = [...profileMessages, ...page];
+				}),
+			]);
+			profileCache.set(key, { messages: profileMessages, info: profileInfo, ts: Date.now() });
+		} catch (err) {
+			handleError(err);
+			profileMessages = [];
+		} finally {
+			profileLoading = false;
+		}
+	}
+
+	async function loadInbox(addr: string) {
+		inboxAddress = addr;
+		const key = addr.toLowerCase();
+		const cached = inboxCache.get(key);
+		if (cached && Date.now() - cached.ts < VIEW_CACHE_TTL) {
+			inboxMessages = cached.messages;
+			return;
+		}
+		inboxLoading = true;
+		try {
+			await getInboxMessages(addr as `0x${string}`, (page) => {
+				inboxMessages = [...inboxMessages, ...page];
+			});
+			inboxCache.set(key, { messages: inboxMessages, ts: Date.now() });
+		} catch (err) {
+			handleError(err);
+			inboxMessages = [];
+		} finally {
+			inboxLoading = false;
+		}
+	}
+
 	async function handleHashChange() {
 		if (!browser) return;
 		const hash = window.location.hash;
+
+		// Reset all route state
 		showPostForm = false;
 		replyTo = null;
 		permalinkMessage = null;
@@ -161,93 +250,26 @@
 		profileInfo = null;
 		inboxAddress = null;
 		inboxMessages = [];
+		showAbout = false;
 
 		if (hash === ROUTES.ABOUT) {
 			showAbout = true;
-		} else {
-			showAbout = false;
-			const permalinkMatch = hash.match(/^#\/p\/(0x[a-fA-F0-9]{64})$/);
-			const profileMatch = hash.match(/^#\/a\/(0x[a-fA-F0-9]{40})$/i);
-			const inboxMatch = hash.match(/^#\/i\/(0x[a-fA-F0-9]{40})$/i);
-
-			if (permalinkMatch) {
-				permalinkMessage = null;
-				permalinkLoading = true;
-				try {
-					permalinkMessage = await getMessageByTxHash(permalinkMatch[1] as `0x${string}`);
-					if (pendingReply && permalinkMessage) {
-						pendingReply = false;
-						replyTo = permalinkMessage;
-						showPostForm = true;
-						await tick();
-						document
-							.querySelector('.post-section')
-							?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-					}
-				} catch (err) {
-					handleError(err);
-					permalinkMessage = null;
-				} finally {
-					permalinkLoading = false;
-				}
-			} else if (profileMatch) {
-				const addr = profileMatch[1];
-				profileAddress = addr;
-				const profKey = addr.toLowerCase();
-				const profCached = profileCache.get(profKey);
-				if (profCached && Date.now() - profCached.ts < VIEW_CACHE_TTL) {
-					profileMessages = profCached.messages;
-					profileInfo = profCached.info;
-				} else {
-					profileLoading = true;
-					try {
-						await Promise.all([
-							getAddressInfo(addr as `0x${string}`).then((info) => {
-								profileInfo = info;
-							}),
-							getMessagesByAddress(addr as `0x${string}`, (page) => {
-								profileMessages = [...profileMessages, ...page];
-							}),
-						]);
-						profileCache.set(profKey, {
-							messages: profileMessages,
-							info: profileInfo,
-							ts: Date.now(),
-						});
-					} catch (err) {
-						handleError(err);
-						profileMessages = [];
-					} finally {
-						profileLoading = false;
-					}
-				}
-			} else if (inboxMatch) {
-				const addr = inboxMatch[1];
-				inboxAddress = addr;
-				const inboxKey = addr.toLowerCase();
-				const inboxCached = inboxCache.get(inboxKey);
-				if (inboxCached && Date.now() - inboxCached.ts < VIEW_CACHE_TTL) {
-					inboxMessages = inboxCached.messages;
-				} else {
-					inboxLoading = true;
-					try {
-						await getInboxMessages(addr as `0x${string}`, (page) => {
-							inboxMessages = [...inboxMessages, ...page];
-						});
-						inboxCache.set(inboxKey, { messages: inboxMessages, ts: Date.now() });
-					} catch (err) {
-						handleError(err);
-						inboxMessages = [];
-					} finally {
-						inboxLoading = false;
-					}
-				}
-			}
+			return;
 		}
+
+		const permalinkMatch = hash.match(PERMALINK_RE);
+		if (permalinkMatch) return loadPermalink(permalinkMatch[1] as `0x${string}`);
+
+		const profileMatch = hash.match(PROFILE_RE);
+		if (profileMatch) return loadProfile(profileMatch[1]);
+
+		const inboxMatch = hash.match(INBOX_RE);
+		if (inboxMatch) return loadInbox(inboxMatch[1]);
 	}
 
 	onMount(async () => {
 		unwatchWallet = initWallet();
+
 		handleHashChange();
 		window.addEventListener('hashchange', handleHashChange);
 		messageLoader = createMessageLoader();
@@ -255,10 +277,14 @@
 			.then((f) => (fee = f))
 			.catch(handleError);
 		try {
-			const [newestCachedMeta, latestBlock] = await Promise.all([
+			const [newestCachedMeta, latestBlock, newChainId] = await Promise.all([
 				idbGetMeta('newestBlock').catch(() => null),
 				refreshLatestBlock(),
+				checkChainId().catch(() => null),
 			]);
+			if (newChainId !== null) {
+				globalError = `Chain changed (now chain ${newChainId}). Local cache has been reset.`;
+			}
 			blockRefreshInterval = setInterval(() => refreshLatestBlock().catch(() => {}), 60_000);
 			if (newestCachedMeta !== null && latestBlock > BigInt(newestCachedMeta)) {
 				syncStatus = 'loading';
@@ -268,13 +294,13 @@
 			const seen = new Set<string>();
 			const { hasMore: more } = await messageLoader.loadInitialStreaming(
 				50,
-				(pageMessages: any[]) => {
-					const fresh = pageMessages.filter((m: any) => !seen.has(m.txHash));
-					fresh.forEach((m: any) => seen.add(m.txHash));
+				(pageMessages: MessageType[]) => {
+					const fresh = pageMessages.filter((m) => !seen.has(m.txHash));
+					fresh.forEach((m) => seen.add(m.txHash));
 					if (messages.length === 0) {
 						messages = fresh;
 					} else {
-						messages = [...messages, ...fresh].sort((a: any, b: any) => b.timestamp - a.timestamp);
+						messages = [...messages, ...fresh].sort((a, b) => b.timestamp - a.timestamp);
 					}
 				}
 			);
@@ -388,7 +414,7 @@
 
 	<main>
 		{#if pendingTxHash && $isConnected}
-			<div class="loading">LOADING...</div>
+			<div class="loading">Sending transaction…</div>
 		{/if}
 
 		{#if $isConnected && !$wrongNetwork && !showAbout && showPostForm && !permalinkMessage}
@@ -422,19 +448,21 @@
 			<PermalinkView
 				message={permalinkMessage}
 				loading={permalinkLoading}
-				isConnected={$isConnected}
-				wrongNetwork={$wrongNetwork}
-				{showPostForm}
-				bind:newMessage
-				{posting}
-				{fee}
-				onPost={handlePost}
-				onCloseForm={() => {
-					resetPostForm();
-					showPostForm = false;
-				}}
-				onReply={handleReply}
+				onReply={$isConnected && !$wrongNetwork ? handleReply : undefined}
 			/>
+			{#if $isConnected && !$wrongNetwork && showPostForm && permalinkMessage}
+				<PostForm
+					bind:value={newMessage}
+					{posting}
+					{fee}
+					isReply={true}
+					onSubmit={handlePost}
+					onClose={() => {
+						resetPostForm();
+						showPostForm = false;
+					}}
+				/>
+			{/if}
 		{:else if profileAddress}
 			<ProfileView
 				address={profileAddress}
@@ -516,11 +544,6 @@
 	}
 	.tagline a:hover {
 		opacity: 0.8;
-	}
-	.loading {
-		text-align: center;
-		padding: 2rem;
-		color: var(--text-secondary);
 	}
 	.rpc-settings {
 		background: none;

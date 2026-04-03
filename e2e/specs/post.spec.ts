@@ -10,13 +10,15 @@ test.describe('Posting messages', () => {
 	test('POST button appears after connecting wallet', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await expect(page.getByRole('button', { name: 'POST' })).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('button', { name: 'POST', exact: true })).toBeVisible({
+			timeout: 10_000,
+		});
 	});
 
 	test('PostForm appears after clicking POST', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 		// The editor textarea should appear (markdown mode is set in fixture)
 		await expect(page.locator('.toastui-editor-md-container textarea')).toBeVisible();
 	});
@@ -24,7 +26,7 @@ test.describe('Posting messages', () => {
 	test('submitting a message adds it to the feed', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 
 		await page.locator('.toastui-editor-md-container textarea').fill('E2E test post');
 		await page.getByRole('button', { name: 'SEND' }).click();
@@ -38,21 +40,21 @@ test.describe('Posting messages', () => {
 	test('SEND button is disabled when message is empty', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 		await expect(page.getByRole('button', { name: 'SEND' })).toBeDisabled();
 	});
 
 	test('fee is displayed in the post form', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 		await expect(page.locator('.fee-info')).toContainText('0.0001 ETH');
 	});
 
 	test('draft persists in localStorage across reload', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 
 		await page.locator('.toastui-editor-md-container textarea').fill('unsaved draft text');
 
@@ -64,7 +66,7 @@ test.describe('Posting messages', () => {
 
 		// After reload, wagmi may auto-reconnect or stay disconnected.
 		// Wait for either the POST button (auto-reconnected) or CONNECT WALLET to be stable.
-		const postBtn = page.getByRole('button', { name: 'POST' });
+		const postBtn = page.getByRole('button', { name: 'POST', exact: true });
 		const connectBtn = page.getByRole('button', { name: 'CONNECT WALLET' });
 		await expect(connectBtn.or(postBtn)).toBeVisible({ timeout: 15_000 });
 		// Give wagmi a moment to fully settle
@@ -82,7 +84,7 @@ test.describe('Posting messages', () => {
 	test('CLOSE button hides the post form', async ({ alicePage: page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'CONNECT WALLET' }).click();
-		await page.getByRole('button', { name: 'POST' }).click({ timeout: 10_000 });
+		await page.getByRole('button', { name: 'POST', exact: true }).click({ timeout: 10_000 });
 		await expect(page.locator('.toastui-editor-md-container textarea')).toBeVisible();
 
 		await page.getByRole('button', { name: 'CLOSE' }).click();

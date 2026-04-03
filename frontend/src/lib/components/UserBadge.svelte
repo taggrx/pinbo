@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolveEnsName, resolveEnsAvatar } from '$lib/ethereum';
+	import { shortAddr } from '$lib/utils';
 	import { create as makeBlockie } from 'blockies-ts';
 
 	interface Props {
@@ -39,32 +40,28 @@
 		};
 	});
 
-	function getDisplayName() {
-		if (ensName) return ensName;
-		if (showFull) return address.slice(0, 6) + '…' + address.slice(-4);
-		return '0x' + address.slice(2, 6);
-	}
+	const displayName = $derived(
+		ensName ? ensName : showFull ? shortAddr(address) : '0x' + address.slice(2, 6)
+	);
 
-	function getEtherscanLink() {
-		return href ?? `https://etherscan.io/address/${address}`;
-	}
+	const etherscanLink = $derived(href ?? `https://etherscan.io/address/${address}`);
 
-	function getBlockie() {
-		return makeBlockie({ seed: address.toLowerCase(), size: 8, scale: 3 }).toDataURL();
-	}
+	const blockieUrl = $derived(
+		makeBlockie({ seed: address.toLowerCase(), size: 8, scale: 3 }).toDataURL()
+	);
 </script>
 
 <a
-	href={getEtherscanLink()}
+	href={etherscanLink}
 	class="address-link"
 	target={href ? undefined : '_blank'}
 	rel={href ? undefined : 'noopener noreferrer'}
 >
-	<img src={ensAvatar ?? getBlockie()} alt="" class="blockie" />
+	<img src={ensAvatar ?? blockieUrl} alt="" class="blockie" />
 	{#if loading}
 		<span class="loading">0x{address.slice(2, 6)}</span>
 	{:else}
-		<span>{getDisplayName()}</span>
+		<span>{displayName}</span>
 	{/if}
 </a>
 

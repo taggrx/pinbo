@@ -94,7 +94,6 @@
 		display: flex;
 		align-items: center;
 	}
-	.logo button img,
 	.logo button {
 		filter: brightness(1.3) drop-shadow(0 0 6px rgba(167, 192, 128, 0.6));
 		transition: filter 0.15s ease;

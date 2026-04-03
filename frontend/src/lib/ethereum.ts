@@ -289,7 +289,11 @@ const MESSAGE_EVENT = parseAbiItem(
 const messageCache = new Map<string, Message>();
 
 /** Converts a raw viem event log into a Message, saving it to both the memory cache and IDB. */
-function logToMessage(log: any): Message {
+function logToMessage(log: {
+	args: Record<string, unknown>;
+	blockNumber: bigint;
+	transactionHash: `0x${string}`;
+}): Message {
 	const data = hexToBytes(log.args.message as `0x${string}`);
 	const { message, topics } = decodeMessage(data);
 	const msg: Message = {
@@ -583,10 +587,38 @@ export function connect() {
 	appKitModal.open();
 }
 
-/** Clears the IDB cache and disconnects the wallet via wagmi. */
+/**
+ * Checks if the RPC chain ID matches what's stored in IDB.
+ * Returns the new chain ID if it changed (IDB is cleared automatically), or null if unchanged.
+ * On first run (no stored chain ID), saves it silently.
+ */
+export async function checkChainId(): Promise<number | null> {
+	const rpcChainId = await getPublicClient().getChainId();
+	const storedChainId = await idbGetMeta('chainId').catch(() => null);
+	if (storedChainId !== null && storedChainId !== rpcChainId) {
+		await resetLocalState();
+		await idbSetMeta('chainId', rpcChainId);
+		return rpcChainId;
+	}
+	if (storedChainId === null) {
+		await idbSetMeta('chainId', rpcChainId).catch(() => {});
+	}
+	return null;
+}
+
+/** Clears all local state: IDB cache, custom RPC, and in-memory ENS caches. */
+export async function resetLocalState() {
+	await idbClear().catch(() => {});
+	setCustomRpc(null);
+	ensCache.clear();
+	ensAvatarCache.clear();
+}
+
+/** Resets local state, disconnects the wallet, and navigates to root. */
 export function disconnect() {
-	idbClear().catch(() => {});
+	resetLocalState();
 	wagmiDisconnect(wagmiAdapter.wagmiConfig);
+	window.location.hash = '';
 }
 
 /**
